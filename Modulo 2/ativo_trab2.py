@@ -4,7 +4,7 @@ import json
 
 HOST = 'localhost'
 PORTA = 5000
-ENCODING = "UTF_32"
+ENCODING = "UTF-8"
 
 
 sock = socket.socket()
@@ -18,7 +18,7 @@ def close_connection():
 def binary_to_dict(the_binary):
     result = json.loads(the_binary.decode(ENCODING))
     return result
-    
+        
 print("### CLIENT ###")
 while True:
 	envio = input("Nome(s) do(s) arquivo(s) separado(s) por espaço: ")
@@ -29,5 +29,7 @@ while True:
 	
 	msg=sock.recv(8192)
 	
-	binary_to_dict(msg)
-	print(str(msg,encoding=ENCODING))
+	resultDicts = binary_to_dict(msg)
+
+	for eachDictionary in resultDicts:
+		print( "\"" + eachDictionary  + "\": " + str(resultDicts[eachDictionary]))

@@ -4,7 +4,7 @@ import re
 import json
 
 HOST = ''
-PORTA = 5001
+PORTA = 5000
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
@@ -17,8 +17,9 @@ print("### SERVER ###")
 print('Conectado com: ' + str(endereco))
 
 dictionary = dict()
-ENCODING = "UTF-32"
+ENCODING = "UTF_32"
 
+# Lê arquivo
 def ReadFile(file_path):
 	try:
 		file = open(file_path,"r")
@@ -32,15 +33,26 @@ def ReadFile(file_path):
 
 	return None
 	
+# Converte dicionário para binário
 def dict_to_binary(the_dict):
-    str = json.dumps(the_dict)
-    #binary = ' '.join(format(ord(letter), 'b') for letter in str)
-    #return binary.encode('utf-8')
-    return str.encode(ENCODING)
+	sortedDict = Sort_Dict(the_dict)
+	#str = json.dumps(the_dict)
+	str = json.dumps(sortedDict)
+	return str.encode(ENCODING)
 
-#Conta as palavras e adiciona ao dicionário
+# retorna um novo dicionário com o sort de top10
+def Sort_Dict(the_dict):
+	sortedDict = dict()
+	
+	for i in range(10):
+		max_key = max(the_dict, key=the_dict.get)
+		sortedDict[max_key] = the_dict.pop(max_key,None)
+
+	return sortedDict
+
+# Conta as palavras e adiciona ao dicionário
 def Count_Words(words):
-	print(words)
+	#print(words)
 	for word in words:
 		key = word.lower()
 		if (key in dictionary):
@@ -61,7 +73,7 @@ def Processamento(arquivo_entrada):
 	
 
 while True:
-		msg = novoSock.recv(4096)
+		msg = novoSock.recv(8192)
 		if not msg: break
 		if (Processamento(str(msg, encoding=ENCODING))):
 			novoSock.send(dict_to_binary(dictionary))

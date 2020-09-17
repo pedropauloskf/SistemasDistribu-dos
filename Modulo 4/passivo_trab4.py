@@ -1,17 +1,14 @@
 ### lado passivo (server) ###
+### BATE PAPO DISTRIBUÍDO ###
 import socket, select, re, json, sys, threading
 
 HOST = ''
 PORTA = 5001
-
 ENCODING = "UTF-8"
 
-# define entrada padrão
-ENTRADAS = [sys.stdin]
-
-# armazena historico de conexoes
-CONEXOES = {}
-
+ENTRADAS = [sys.stdin] # define entrada padrão
+CONEXOES = {} # armazena historico de conexoes
+ID_ENDERECO = {} # associa um id único a um endereço (conexão de cliente ip + porta)
 
 # Inicia o servidor e adiciona o socket do servidor nas entradas
 def StartServer():
@@ -23,59 +20,25 @@ def StartServer():
     return sock
 
 
-# Lê arquivo
-def ReadFile(file_path):
-    try:
-        file = open(file_path, "r")
-        # print(file.read())
-        return file
-
-    except FileNotFoundError:
-        print("Arquivo não encontrado: [%s]" % (file_path))
-        return None
-    except:
-        print("Algo errado com o arquivo")
-        return None
-
-
 # Converte dicionário para binário
 def DictToBinary(the_dict):
     str = json.dumps(the_dict)
     return str.encode(ENCODING)
 
 
-# retorna um novo dicionário com o sort de top10
-def SortDict(the_dict):
-    sortedDict = dict()
+# gerencia o recebimento de conexões de clientes, recebe o sock do server
+def NewClient(sock):
+    newSocket, endereco = sock.accept()
+    print('Conectado com: ' + str(endereco))
 
-    for i in range(10):
-        max_key = max(the_dict, key=the_dict.get)
-        sortedDict[max_key] = the_dict.pop(max_key, None)
-
-    return sortedDict
-
-
-# Conta as palavras e adiciona ao dicionário
-def CountWords(words, dictionaryFull):
-    # print(words)
-    for word in words:
-        key = word.lower()
-        if key in dictionaryFull:
-            dictionaryFull[key] += 1
-        else:
-            dictionaryFull[key] = 1
-
-
-# Le arquivos por linha, faz split, chama func CountWords
-def ReadAndSplit(file, dictionaryFull):
-    file = ReadFile(file)
-    if file:
-        for lines in file:
-            words = re.findall(r"[\w']+", lines)
-            CountWords(words, dictionaryFull)
-        return True
+    CONEXOES[newSocket] = endereco # registra a nova conexão no dicionário de conexões
+    if len(ID_ENDERECO) == 0:
+        ID_ENDERECO[1] = endereco
     else:
-        return False
+        indice = max(ID_ENDERECO, key=ID_ENDERECO.get)+1
+        ID_ENDERECO[max(ID_ENDERECO, key=ID_ENDERECO.get)+1] = endereco
+    
+    return newSocket, endereco
 
 
 # Processa as requisições do cliente
@@ -86,9 +49,11 @@ def Processing(clientSock, address):
         if not msg:
             print(str(address) + '-> encerrou')
             del CONEXOES[clientSock]
+            del ID_ENDERECO[list(ID_ENDERECO.keys())[list(ID_ENDERECO.values()).index(address)]]
             clientSock.close()
             return
 
+        '''
         # pega os resultados finais em um único dicionário
         resultDict = dict()
 
@@ -105,20 +70,33 @@ def Processing(clientSock, address):
                 if file in listToIgnore: continue
                 msgToSend = "Houve um problema ao tentar processar [%s]" % file
                 resultDict[file] = msgToSend
-
+        '''        
         # Enviar um único dicionário, com os erros ou êxitos
-        clientSock.send(DictToBinary(resultDict))
+        #clientSock.send(DictToBinary(resultDict))
 
+        msgStr = (str(msg, encoding=ENCODING))
+        if msgStr == "--listar":
+            clientSock.send(str(ID_ENDERECO).encode(ENCODING))
+        if msgStr == "--trocar":
+            clientSock.send(str(ID_ENDERECO).encode(ENCODING))
+            addressIdStr = clientSock.recv(1024)
+            try:
+                addressIdInt = int(addressIdStr)
+            except:
+                print("Mensagem não é um número")
+                continue
+            if addressIdInt not in ID_ENDERECO:
+                clientSock.send(("Conexão não encontrada [%s]" % (addressIdInt)).encode(ENCODING))
+            else:
+                try:
+                    if CONEXOES[clientSock] ==  ID_ENDERECO[addressIdInt]:
+                        clientSock.send("Usuário tentanto conversar consigo mesmo".encode(ENCODING))
+                        continue
+                except:
+                    clientSock.send(b"not ok")
+                    continue
 
-# gerencia o recebimento de conexões de clientes, recebe o sock do server
-def NewClient(sock):
-    newSocket, endereco = sock.accept()
-    print('Conectado com: ' + str(endereco))
-
-    # registra a nova conexão no dicionário de conexões
-    CONEXOES[newSocket] = endereco
-
-    return newSocket, endereco
+                clientSock.send(b"ok")
 
 
 def main():
@@ -132,7 +110,7 @@ def main():
         for leitura_input in leitura:  # percorre cada objeto de leitura (conexão socket, entrada de teclado)
             if leitura_input == sock:  # significa que a leitura recebeu pedido de conexão
                 clientSock, endr = NewClient(sock)
-
+                
                 # cria e inicia nova thread para atender o cliente
                 newClientThread = threading.Thread(target=Processing, args=(clientSock, endr))
                 newClientThread.start()

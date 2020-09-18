@@ -6,6 +6,9 @@ HOST = 'localhost'
 PORTA = 5001
 ENCODING = "UTF-8"
 
+isOnchat = False
+receiverID = -1
+
 sock = socket.socket()
 sock.connect((HOST, PORTA))
 
@@ -29,56 +32,76 @@ def QuickReceive(socket, size):
 
 def QuickReceiveAndPrint(socket, size):
     msgStr = QuickReceive(socket,size)
-    print(msgStr)
+    print("\n"+msgStr)
     return msgStr
-
 
 def CommandList():
     print("Para ter acesso à lista de comandos, digite \"--help\":")
     print("--listar : Lista as conexões disponíveis para chat")
     print("--trocar : Troca o atual destinatário")
-    print("stop : Encerra o cliente")
+    print("--stop : Encerra o cliente")
+
+def HandleP2PMessage(clientSocket, messageToChat):
+    global isOnchat,receiverID
+    messagePrefix = "[[" + receiverID + "]]"
+    QuickSend(clientSocket, messagePrefix + messageToChat);
 
 # Verifica se o cliente digitou algum comando ou mensagem a enviar
 def ChooseAction(inputFromClient):
-    if inputFromClient == "stop":
+    listToIgnore = [" ", "\\n", ""]
+
+    if inputFromClient == "--stop":
         CloseConnection()
-    if inputFromClient == "":
+
+    if inputFromClient in listToIgnore:
         print("Nada foi digitado")
-        return
+
     if inputFromClient == "--help":
         CommandList()
+
     if inputFromClient == "--listar":
         QuickSend(sock,inputFromClient)
         QuickReceiveAndPrint(sock,8192)
+
     if inputFromClient == "--trocar":
         QuickSend(sock,inputFromClient)
         QuickReceiveAndPrint(sock,8192)
         changeTo = input("Digite o número referente a conexão que você deseja conversar: ")
         QuickSend(sock,changeTo)
-        #okMsg = sock.recv(1024)
-        okMsg = QuickReceiveAndPrint(sock,1024)
+        okMsg = QuickReceive(sock,1024)
         if okMsg == "ok":
-            print("Conversando agora com: %s" %changeTo)
+            global receiverID
+            receiverID = changeTo
+            global isOnchat
+            isOnchat = True
+            print("\nConversando agora com: [%s]" %changeTo)
         else:
-            print("Conexão não localizada ")
+            print(okMsg)
+    
 
     
 print("### CLIENT ###")
 CommandList()
 
 
-def main():
-    while True:    
-        toSend = input()        
-        ChooseAction(toSend)
-        
-        #msgRecv = sock.recv(8192)
-        #print(str(msgRecv, encoding=ENCODING))
+#def main():
 
-        '''resultDicts = BinaryToDict(msg)
+while True:
+    if receiverID == -1:
+        toSend = input("Conversando com {Ninguém}, escolha alguém com \"--trocar\" \n ")
+    else:    
+        toSend = input("Conversando com {%s}: " %receiverID)
+        HandleP2PMessage
+    ChooseAction(toSend)
+    
+    #msgRecv = sock.recv(8192)
+    #print(str(msgRecv, encoding=ENCODING))
 
-        for eachDictionary in resultDicts:
-            print("\"" + eachDictionary + "\": " + str(resultDicts[eachDictionary]))'''
+    '''resultDicts = BinaryToDict(msg)
 
-main()
+    for eachDictionary in resultDicts:
+        print("\"" + eachDictionary + "\": " + str(resultDicts[eachDictionary]))'''
+
+#main()
+
+

@@ -40,6 +40,31 @@ def NewClient(sock):
     
     return newSocket, endereco
 
+# Processa algum comando vindo do cliente
+def ChooseAction(clientSock, msgStr):
+    if msgStr == "--listar":
+        clientSock.send(str(ID_ENDERECO).encode(ENCODING))
+    elif msgStr == "--trocar":
+        clientSock.send(str(ID_ENDERECO).encode(ENCODING))
+        addressIdStr = clientSock.recv(1024)
+        try:
+            addressIdInt = int(addressIdStr)
+        except:
+            print("Mensagem não é um número")
+            return
+        if addressIdInt not in ID_ENDERECO:
+            clientSock.send(("Conexão não encontrada [%s]" % (addressIdInt)).encode(ENCODING))
+        else:
+            try:
+                if CONEXOES[clientSock] ==  ID_ENDERECO[addressIdInt]:
+                    clientSock.send("Usuário tentanto conversar consigo mesmo".encode(ENCODING))
+                    return
+            except:
+                clientSock.send(b"not ok")
+                return
+
+            clientSock.send(b"ok")
+    
 
 # Processa as requisições do cliente
 def Processing(clientSock, address):
@@ -52,6 +77,40 @@ def Processing(clientSock, address):
             del ID_ENDERECO[list(ID_ENDERECO.keys())[list(ID_ENDERECO.values()).index(address)]]
             clientSock.close()
             return
+
+        msgStr = (str(msg, encoding=ENCODING))
+        #ChooseAction(clientSock, msgStr)
+
+        if msgStr == "--listar":
+            clientSock.send(str(ID_ENDERECO).encode(ENCODING))
+        if msgStr == "--trocar":
+            clientSock.send(str(ID_ENDERECO).encode(ENCODING))
+            addressIdStr = clientSock.recv(1024)
+            try:
+                addressIdInt = int(addressIdStr)
+            except:
+                print("Mensagem não é um número")
+                return
+            if addressIdInt not in ID_ENDERECO:
+                clientSock.send(("Conexão não encontrada [%s]" % (addressIdInt)).encode(ENCODING))
+            else:
+                try:
+                    if CONEXOES[clientSock] ==  ID_ENDERECO[addressIdInt]:
+                        clientSock.send("Usuário tentanto conversar consigo mesmo".encode(ENCODING))
+                        return
+                except:
+                    clientSock.send(b"not ok")
+                    return
+
+                clientSock.send(b"ok")
+        
+        
+        receiverId = msgStr.split("[[]]")
+        #receiverId = re.findall(r"[\[\[\d\]\]']+", msgStr)
+        print("O receiver a enviar é: [%s], o cliente remente é [%s] e o destino é [%s]" %(receiverId, address, "teste"))
+    
+        
+            
 
         '''
         # pega os resultados finais em um único dicionário
@@ -70,33 +129,10 @@ def Processing(clientSock, address):
                 if file in listToIgnore: continue
                 msgToSend = "Houve um problema ao tentar processar [%s]" % file
                 resultDict[file] = msgToSend
-        '''        
+                
         # Enviar um único dicionário, com os erros ou êxitos
         #clientSock.send(DictToBinary(resultDict))
-
-        msgStr = (str(msg, encoding=ENCODING))
-        if msgStr == "--listar":
-            clientSock.send(str(ID_ENDERECO).encode(ENCODING))
-        if msgStr == "--trocar":
-            clientSock.send(str(ID_ENDERECO).encode(ENCODING))
-            addressIdStr = clientSock.recv(1024)
-            try:
-                addressIdInt = int(addressIdStr)
-            except:
-                print("Mensagem não é um número")
-                continue
-            if addressIdInt not in ID_ENDERECO:
-                clientSock.send(("Conexão não encontrada [%s]" % (addressIdInt)).encode(ENCODING))
-            else:
-                try:
-                    if CONEXOES[clientSock] ==  ID_ENDERECO[addressIdInt]:
-                        clientSock.send("Usuário tentanto conversar consigo mesmo".encode(ENCODING))
-                        continue
-                except:
-                    clientSock.send(b"not ok")
-                    continue
-
-                clientSock.send(b"ok")
+        '''
 
 
 def main():
@@ -118,13 +154,13 @@ def main():
 
             elif leitura_input == sys.stdin:  # entrada padrão, teclado
                 cmd = input()
-                if cmd == "stop":  # solicitação para finalizar o servidor
+                if cmd == "--stop":  # solicitação para finalizar o servidor
                     for c in clientes:
                         print("Ainda há clientes com conexões ativas")
                         c.join()  # aguarda todas as threads terminarem, onde a magia do join acontece
                     sock.close()
                     sys.exit()
-                elif cmd == "hist":  # mostra histórico de conexões do server
+                elif cmd == "--hist":  # mostra histórico de conexões do server
                     print(str(CONEXOES.values()))
 
 

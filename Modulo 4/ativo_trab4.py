@@ -41,12 +41,14 @@ def CommandList():
     print("--trocar : Troca o atual destinatário")
     print("--stop : Encerra o cliente")
 
+# Envia e recebe mensagem com prefixo do destinatário
+# TODO send e recv para ver se tem mesagens para serem recebidas
 def HandleP2PMessage(clientSocket, messageToChat):
     global isOnchat,receiverID
     messagePrefix = "[[" + receiverID + "]]"
-    QuickSend(clientSocket, messagePrefix + messageToChat);
+    QuickSend(clientSocket, messagePrefix + messageToChat)
 
-# Verifica se o cliente digitou algum comando ou mensagem a enviar
+# Verifica se o cliente digitou algum comando
 def ChooseAction(inputFromClient):
     listToIgnore = [" ", "\\n", ""]
 
@@ -74,15 +76,14 @@ def ChooseAction(inputFromClient):
             receiverID = changeTo
             global isOnchat
             isOnchat = True
-            print("\nConversando agora com: [%s]" %changeTo)
+            #print("\nConversando agora com: [%s]" %changeTo)
+            print("OK\n")
         else:
             print(okMsg)
     
-
-    
+   
 print("### CLIENT ###")
 CommandList()
-
 
 #def main():
 
@@ -91,7 +92,7 @@ while True:
         toSend = input("Conversando com {Ninguém}, escolha alguém com \"--trocar\" \n ")
     else:    
         toSend = input("Conversando com {%s}: " %receiverID)
-        HandleP2PMessage
+        HandleP2PMessage(sock,toSend)
     ChooseAction(toSend)
     
     #msgRecv = sock.recv(8192)

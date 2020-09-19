@@ -40,24 +40,24 @@ def NewClient(sock):
     
     return newSocket, endereco
 
-# Processa algum comando vindo do cliente
-def ChooseAction(clientSock, msgStr):
+# Processa, caso haja, algum comando vindo do cliente
+def CommandList(clientSock, msgStr):
     if msgStr == "--listar":
         clientSock.send(str(ID_ENDERECO).encode(ENCODING))
-    elif msgStr == "--trocar":
+    if msgStr == "--trocar":
         clientSock.send(str(ID_ENDERECO).encode(ENCODING))
         addressIdStr = clientSock.recv(1024)
         try:
             addressIdInt = int(addressIdStr)
         except:
-            print("Mensagem não é um número")
+            print("Id do destinatário não é um número") #TODO enviar essa mensagem de volta para emissor
             return
         if addressIdInt not in ID_ENDERECO:
             clientSock.send(("Conexão não encontrada [%s]" % (addressIdInt)).encode(ENCODING))
         else:
             try:
                 if CONEXOES[clientSock] ==  ID_ENDERECO[addressIdInt]:
-                    clientSock.send("Usuário tentanto conversar consigo mesmo".encode(ENCODING))
+                    clientSock.send("\nUsuário tentanto conversar consigo mesmo".encode(ENCODING))
                     return
             except:
                 clientSock.send(b"not ok")
@@ -79,60 +79,21 @@ def Processing(clientSock, address):
             return
 
         msgStr = (str(msg, encoding=ENCODING))
-        #ChooseAction(clientSock, msgStr)
 
-        if msgStr == "--listar":
-            clientSock.send(str(ID_ENDERECO).encode(ENCODING))
-        if msgStr == "--trocar":
-            clientSock.send(str(ID_ENDERECO).encode(ENCODING))
-            addressIdStr = clientSock.recv(1024)
-            try:
-                addressIdInt = int(addressIdStr)
-            except:
-                print("Mensagem não é um número")
-                return
-            if addressIdInt not in ID_ENDERECO:
-                clientSock.send(("Conexão não encontrada [%s]" % (addressIdInt)).encode(ENCODING))
-            else:
-                try:
-                    if CONEXOES[clientSock] ==  ID_ENDERECO[addressIdInt]:
-                        clientSock.send("Usuário tentanto conversar consigo mesmo".encode(ENCODING))
-                        return
-                except:
-                    clientSock.send(b"not ok")
-                    return
-
-                clientSock.send(b"ok")
+        CommandList(clientSock, msgStr)
         
-        
-        receiverId = msgStr.split("[[]]")
-        #receiverId = re.findall(r"[\[\[\d\]\]']+", msgStr)
-        print("O receiver a enviar é: [%s], o cliente remente é [%s] e o destino é [%s]" %(receiverId, address, "teste"))
-    
-        
-            
+        receiverIdStr = []
+        try:
+            receiverIdStr = re.search('(?<=\[\[)(\d)+', msgStr)
+            print("debug recv id str {" + receiverIdStr.group(0) + "} " + str((receiverIdStr.group(0)).isnumeric()) )
+            if (receiverIdStr.group(0)).isnumeric():
+                receiverIdInt = int(receiverIdStr.group(0))
+                print("O receiverId a enviar é: [%d], o cliente remente é [%s] e o destino é [%s]" %(receiverIdInt, address,ID_ENDERECO[receiverIdInt] ))
+        except:
+            print("deu ruim")
+            continue
 
-        '''
-        # pega os resultados finais em um único dicionário
-        resultDict = dict()
 
-        # lista de nomes dos arquivos recebido pelo cliente
-        fileList = (str(msg, encoding=ENCODING)).split(' ')
-
-        for file in fileList:
-            # Processa as palavras, inserindo no dicionário final
-            if ReadAndSplit(file, dictionaryFull):
-                resultDict[file] = SortDict(dictionaryFull)
-                dictionaryFull = {}
-            else:  # adiciona ao dicionário de resultado final a mensagem com erro
-                listToIgnore = [" ", "\\n", ""]
-                if file in listToIgnore: continue
-                msgToSend = "Houve um problema ao tentar processar [%s]" % file
-                resultDict[file] = msgToSend
-                
-        # Enviar um único dicionário, com os erros ou êxitos
-        #clientSock.send(DictToBinary(resultDict))
-        '''
 
 
 def main():

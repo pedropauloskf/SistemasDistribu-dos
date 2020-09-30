@@ -25,7 +25,6 @@ def DictToBinary(the_dict):
     str = json.dumps(the_dict)
     return str.encode(ENCODING)
 
-
 # gerencia o recebimento de conexões de clientes, recebe o sock do server
 def NewClient(sock):
     newSocket, endereco = sock.accept()
@@ -40,7 +39,7 @@ def NewClient(sock):
     
     return newSocket, endereco
 
-# Processa, caso haja, algum comando vindo do cliente
+# Recebe algum comando vindo do cliente
 def CommandList(clientSock, msgStr):
     if msgStr == "--listar":
         clientSock.send(str(ID_ENDERECO).encode(ENCODING))
@@ -50,14 +49,15 @@ def CommandList(clientSock, msgStr):
         try:
             addressIdInt = int(addressIdStr)
         except:
-            print("Id do destinatário não é um número") #TODO enviar essa mensagem de volta para emissor
+            print("Id do destinatário não é um número")
+            clientSock.send("Id do destinatário não é um número".encode())
             return
         if addressIdInt not in ID_ENDERECO:
             clientSock.send(("Conexão não encontrada [%s]" % (addressIdInt)).encode(ENCODING))
         else:
             try:
                 if CONEXOES[clientSock] ==  ID_ENDERECO[addressIdInt]:
-                    clientSock.send("\nUsuário tentanto conversar consigo mesmo".encode(ENCODING))
+                    clientSock.send("\nUsuário tentando conversar consigo mesmo".encode(ENCODING))
                     return
             except:
                 clientSock.send(b"not ok")
@@ -65,7 +65,6 @@ def CommandList(clientSock, msgStr):
 
             clientSock.send(b"ok")
     
-
 # Processa as requisições do cliente
 def Processing(clientSock, address):
     dictionaryFull = {}
@@ -79,21 +78,23 @@ def Processing(clientSock, address):
             return
 
         msgStr = (str(msg, encoding=ENCODING))
-
-        CommandList(clientSock, msgStr)
-        
+        CommandList(clientSock, msgStr)        
         receiverIdStr = []
         try:
-            receiverIdStr = re.search('(?<=\[\[)(\d)+', msgStr)
-            print("debug recv id str {" + receiverIdStr.group(0) + "} " + str((receiverIdStr.group(0)).isnumeric()) )
+            receiverIdStr = re.search('(?<=\[\[)(\d)+', msgStr) # Pega somente o número do prefixo vindo do remetente
             if (receiverIdStr.group(0)).isnumeric():
                 receiverIdInt = int(receiverIdStr.group(0))
-                print("O receiverId a enviar é: [%d], o cliente remente é [%s] e o destino é [%s]" %(receiverIdInt, address,ID_ENDERECO[receiverIdInt] ))
+                print("id destinatário: {%d}, o socket remente: {%s}, socket destino: {%s}" %(receiverIdInt, address,ID_ENDERECO[receiverIdInt] ))
+                clientSock.send(b"yes") # Remetente espera uma flag "yes" para saber se há mensagens na fila
+                clientSock.send() # TODO Envia mensagens na fila para o remetente
+                clientSock.send() # TODO Envia a mensagem para o destinatário
+            else:
+                print("id de destinatário recebido {" + receiverIdStr.group(0) + "} não é um número: " + str((receiverIdStr.group(0)).isnumeric()) )
+                clientSock.send(b"notOk") # Informa ao cliente que não há mensagens na fila e algo está errado
+                clientSock.send(str("id de destinatário recebido {" + receiverIdStr.group(0) + "} não é um número: " + str((receiverIdStr.group(0)).isnumeric())).encode())
         except:
             print("deu ruim")
             continue
-
-
 
 
 def main():

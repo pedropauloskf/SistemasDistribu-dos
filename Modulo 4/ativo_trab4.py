@@ -47,6 +47,13 @@ def HandleP2PMessage(clientSocket, messageToChat):
     global isOnchat,receiverID
     messagePrefix = "[[" + receiverID + "]]"
     QuickSend(clientSocket, messagePrefix + messageToChat)
+    thereIs = QuickReceive(clientSocket, 512)      # Verifica se há mensagens na fila
+    if thereIs == "notOk":
+        QuickReceiveAndPrint(clientSocket, 1024)
+
+    while thereIs == "yes": # Enquanto houver mensagens na fila, recebe do server
+        QuickReceiveAndPrint(clientSocket, 8192)
+        thereIs = QuickReceive(clientSocket, 512)
 
 # Verifica se o cliente digitou algum comando
 def ChooseAction(inputFromClient):
@@ -76,7 +83,6 @@ def ChooseAction(inputFromClient):
             receiverID = changeTo
             global isOnchat
             isOnchat = True
-            #print("\nConversando agora com: [%s]" %changeTo)
             print("OK\n")
         else:
             print(okMsg)

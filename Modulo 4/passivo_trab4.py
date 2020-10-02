@@ -3,7 +3,7 @@
 import socket, select, re, json, sys, threading
 
 HOST = ''
-PORTA = 5001
+PORTA = 5002
 ENCODING = "UTF-8"
 
 ENTRADAS = [sys.stdin] # define entrada padrão
@@ -32,7 +32,7 @@ def NewClient(sock):
     newSocket, endereco = sock.accept()
     print('Conectado com: ' + str(endereco))
 
-    CONEXOES[newSocket] = endereco # registra a nova conexão no dicionário de conexões
+    CONEXOES[endereco] = newSocket # registra a nova conexão no dicionário de conexões
     if len(ID_ENDERECO) == 0:
         ID_ENDERECO[1] = endereco
     else:
@@ -43,7 +43,7 @@ def NewClient(sock):
 
 
 # Recebe algum comando vindo do cliente
-def CommandList(clientSock, msgStr):
+def CommandList(clientSock, address, msgStr):
     if msgStr == "--listar":
         clientSock.send(str(ID_ENDERECO).encode(ENCODING))
         return
@@ -60,9 +60,10 @@ def CommandList(clientSock, msgStr):
 
         if addressIdInt not in ID_ENDERECO:
             clientSock.send(("Conexão não encontrada [%s]" % (addressIdInt)).encode(ENCODING))
+            return 0
         else:
             try:
-                if CONEXOES[clientSock] ==  ID_ENDERECO[addressIdInt]:
+                if address ==  ID_ENDERECO[addressIdInt]:
                     clientSock.send("\nUsuário tentando conversar consigo mesmo".encode(ENCODING))
                     return 0
             except:
@@ -72,6 +73,25 @@ def CommandList(clientSock, msgStr):
             clientSock.send(b"ok")
             return addressIdInt
 
+
+#Verifica se a mensagem é um comando ou uma mensagem para outro cliente
+def checkIfCommand(msgStr):
+    try:
+        if msgStr.index('--') == 0:
+            return True
+    except:
+        pass
+    return False
+
+
+#Separa o id do destinatário e o conteúdo da mensagem
+def separateMsg(msgStr):
+    idStart = msgStr.index('[[')
+    idEnd = msgStr.index(']]')
+    recId = msgStr[idStart+2:idEnd]
+    recContent = msgStr[idEnd+2:]
+    
+    return recId, recContent
 
 # Processa as requisições do cliente
 def Processing(clientSock, address):
@@ -86,27 +106,36 @@ def Processing(clientSock, address):
             clientSock.close()
             return
 
-        msgStr = (str(msg, encoding=ENCODING)) 
+        msgStr = (str(msg, encoding=ENCODING))
 
-        # Verifica o comando solicitado e recebe o ID da conexão que se deseja fazer, 0 se for um ID inválido ou None caso seja o comando de listar conexões
-        commandResponse = CommandList(clientSock, msgStr)
-
-        try:
-            if commandResponse != None:
-                if commandResponse != 0:
-                    print("Nova conexão entre clientes solicitada. Socket remetente: {%s}, Socket destino: {%s}" %(str(address), str(ID_ENDERECO[commandResponse])))
-                    clientSock.send(b"yes") # Remetente espera uma flag "yes" para saber se há mensagens na fila
-                    clientSock.send() # TODO Envia mensagens na fila para o remetente
-                    clientSock.send() # TODO Envia a mensagem para o destinatário
+        if checkIfCommand(msgStr):
+            # Verifica o comando solicitado e recebe o ID da conexão que se deseja fazer, 0 se for um ID inválido ou None caso seja o comando de listar conexões
+            commandResponseId = CommandList(clientSock, address, msgStr)
+            try:
+                if commandResponseId != None:
+                    if commandResponseId != 0:
+                        print(commandResponseId)
+                        print(ID_ENDERECO[commandResponseId])
+                        print("Nova conexão entre clientes solicitada. Socket remetente: {%s}, Socket destino: {%s}" %(str(address), str(ID_ENDERECO[commandResponseId])))
+                        # clientSock.send(b"#yes") # Remetente espera uma flag "yes" para saber se há mensagens na fila
+                    else:
+                        print("{%s} solicitou nova conexão, porém id de destinatário recebido não é um número válido" %(str(address)))
+                        clientSock.send(b"notOk") # Informa ao cliente que não há mensagens na fila e algo está errado
                 else:
-                    print("id de destinatário recebido de { {%s} } não é um número válido" %(str(address)))
-                    clientSock.send(b"notOk") # Informa ao cliente que não há mensagens na fila e algo está errado
-                    clientSock.send(str("id de destinatário recebido não é um número válido"))
-            else:
-                print("Socket {%s} solicitou listagem de conexões ativas" %(str(address)))
-        except:
-            print("deu ruim")
-            continue
+                    print("Socket {%s} solicitou listagem de conexões ativas" %(str(address)))
+            except:
+                print("Problemas ao executar o comando '%s' solicitado por {%s}" % (msgStr, str(address)))
+                continue
+        else:
+            try:
+                targetId, msgContent = separateMsg(msgStr)
+                targetAdd = ID_ENDERECO[int(targetId)] #Pega o endereço do destinatário
+                targetSock = CONEXOES[targetAdd] #Recupera o socket do destinatário
+                targetSock.send(msgStr.encode(ENCODING))
+                print('Mensagem recebida para %s: %s' %(str(targetAdd), msgContent))
+            except:
+                print('Erro ao encaminhar mensagem de %s' % (str(address)))
+
 
 
 def main():
@@ -135,7 +164,7 @@ def main():
                     sock.close()
                     sys.exit()
                 elif cmd == "--hist":  # mostra histórico de conexões do server
-                    print(str(CONEXOES.values()))
+                    print(str(CONEXOES.keys()))
 
 
 main()

@@ -3,7 +3,7 @@
 import socket, json, sys
 
 HOST = 'localhost'
-PORTA = 5001
+PORTA = 5002
 ENCODING = "UTF-8"
 
 isOnchat = False
@@ -41,13 +41,25 @@ def CommandList():
     print("--trocar : Troca o atual destinatário")
     print("--stop : Encerra o cliente")
 
+# Separa a mensagem recebida do ID de quem enviou
+def separateMsg(msgStr):
+    idStart = msgStr.index('[[')
+    idEnd = msgStr.index(']]')
+    senderId = msgStr[idStart+2:idEnd]
+    msgContent = msgStr[idEnd+2:]
+    
+    return senderId, msgContent
+
 # Envia e recebe mensagem com prefixo do destinatário
-# TODO send e recv para ver se tem mesagens para serem recebidas
 def HandleP2PMessage(clientSocket, messageToChat):
     global isOnchat,receiverID
     messagePrefix = "[[" + receiverID + "]]"
     QuickSend(clientSocket, messagePrefix + messageToChat)
     thereIs = QuickReceive(clientSocket, 512)      # Verifica se há mensagens na fila
+    if thereIs:
+        senderID, msgContent = separateMsg(thereIs)
+        print("Mensagem de {%s}: %s" % (senderID, msgContent))
+
     if thereIs == "notOk":
         QuickReceiveAndPrint(clientSocket, 1024)
 

@@ -86,8 +86,7 @@ def ChooseAction(inputFromClient):
             print("OK\n")
         else:
             print(okMsg)
-    
-   
+
 print("### CLIENT ###")
 CommandList()
 

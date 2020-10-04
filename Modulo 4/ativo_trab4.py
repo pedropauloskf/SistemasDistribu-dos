@@ -84,11 +84,11 @@ def ignoreInput(inputMsg):
 
 
 # Envia e recebe mensagem com prefixo do destinatário
-def HandleP2PMessage2(clientSocket, messageToChat):
+def HandleP2PMessage(clientSocket, messageToChat):
     try:
         QuickSend(clientSocket, packMsg(messageToChat, 'msg'))
     except:
-        print("Não conseguimos enviar a mensagem: %s" % messageToChat)
+        print("ATT> Não conseguimos enviar a mensagem: %s" % messageToChat)
 
 
 # Verifica se o cliente digitou algum comando
@@ -142,7 +142,8 @@ def ServerResponse(responseId, msg):
     elif responseId == '--conexao':
         isAwaitingServer = True
         while True:
-            res = input('{%s} deseja começar uma conversa. Aceitar? (S/N)' % msg)
+            print('\n{%s} deseja começar uma conversa. Aceitar? (S/N)' % msg)
+            res = input()
             slc = int(msg[1:msg.index(':')])
             if res == 'S':
                 isOnChat = True
@@ -190,7 +191,7 @@ def readInputAndSend():
             if toSend.find('--') == 0:
                 ChooseAction(toSend)
             else:
-                HandleP2PMessage2(sock, toSend)
+                HandleP2PMessage(sock, toSend)
     return
 
 

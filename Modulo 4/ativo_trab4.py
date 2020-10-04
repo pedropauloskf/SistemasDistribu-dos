@@ -6,7 +6,7 @@ import sys
 import threading
 
 HOST = 'localhost'
-PORTA = 5002
+PORT = 5002
 ENCODING = "UTF-8"
 
 isOnChat = False
@@ -14,7 +14,7 @@ receiverID = -1
 isActive = True
 
 sock = socket.socket()
-sock.connect((HOST, PORTA))
+sock.connect((HOST, PORT))
 
 
 def CloseConnection():
@@ -39,12 +39,6 @@ def QuickReceive(socket, size):
     return msgStr
 
 
-def QuickReceiveAndPrint(socket, size):
-    msgStr = QuickReceive(socket, size)
-    print("\n" + msgStr)
-    return msgStr
-
-
 def CommandList():
     print("Para ter acesso à lista de comandos, digite \"--help\":")
     print("--listar : Lista as conexões disponíveis para chat")
@@ -52,47 +46,36 @@ def CommandList():
     print("--stop : Encerra o cliente")
 
 
-# Separa a mensagem recebida do ID de quem enviou
-def separateMsg(msgStr):
+# Separa a mensagem recebida do ID de envio
+def unpackMsg(msgStr):
     idStart = msgStr.index('[[')
     idEnd = msgStr.index(']]')
     senderId = msgStr[idStart + 2:idEnd]
     msgContent = msgStr[idEnd + 2:]
-
     return senderId, msgContent
 
 
-# Envia e recebe mensagem com prefixo do destinatário
-def HandleP2PMessage(clientSocket, messageToChat):
-    global isOnChat, receiverID
-    messagePrefix = "[[" + str(receiverID) + "]]"
-    QuickSend(clientSocket, messagePrefix + messageToChat)
-    thereIs = QuickReceive(clientSocket, 512)  # Verifica se há mensagens na fila
-    if thereIs:
-        senderID, msgContent = separateMsg(thereIs)
-        print("Mensagem de {%s}: %s" % (senderID, msgContent))
-
-    if thereIs == "notOk":
-        QuickReceiveAndPrint(clientSocket, 1024)
-
-    while thereIs == "yes":  # Enquanto houver mensagens na fila, recebe do server
-        QuickReceiveAndPrint(clientSocket, 8192)
-        thereIs = QuickReceive(clientSocket, 512)
+# Adiciona o ID de envio a mensagem ou ação
+def packMsg(msgStr, msgType):
+    if msgType == 'action':
+        return "[[" + msgStr + "]]"
+    elif msgType == 'msg':
+        global receiverID
+        messagePrefix = "[[" + str(receiverID) + "]]"
+        return messagePrefix + msgStr
 
 
 # Envia e recebe mensagem com prefixo do destinatário
 def HandleP2PMessage2(clientSocket, messageToChat):
-    global isOnChat, receiverID
     try:
-        messagePrefix = "[[" + str(receiverID) + "]]"
-        QuickSend(clientSocket, messagePrefix + messageToChat)
+        QuickSend(clientSocket, packMsg(messageToChat, 'msg'))
     except:
-        print("Não conseguimos enviar a mensagem: %s" % (messageToChat))
+        print("Não conseguimos enviar a mensagem: %s" % messageToChat)
 
 
 # Verifica se o cliente digitou algum comando
 def ChooseAction(inputFromClient):
-    global isActive
+    global isActive, receiverID
     listToIgnore = [" ", "\\n", ""]
 
     if inputFromClient in listToIgnore:
@@ -106,61 +89,90 @@ def ChooseAction(inputFromClient):
         CommandList()
 
     elif inputFromClient == "--listar":
-        QuickSend(sock, inputFromClient)
-        QuickReceiveAndPrint(sock, 8192)
+        QuickSend(sock, packMsg(inputFromClient, 'action'))
 
     elif inputFromClient == "--trocar":
-        QuickSend(sock, inputFromClient)
-        QuickReceiveAndPrint(sock, 8192)
+        receiverID = 0
+        QuickSend(sock, packMsg(inputFromClient, 'action'))
+
+    else:
+        print('Comando inválido. Se quiser a lista de comandos, digite --help')
+
+
+# Realiza as ações apropriadas de acordo com a resposta a
+# uma solicitação enviada ao servidor
+def ServerResponse(responseId, msg):
+    global receiverID, isOnChat
+
+    # Exibe a lista de clientes conectados
+    if responseId == "--listar":
+        print(msg + "\n")
+
+    # Exibe a lista de clientes conectados e solicita a qual
+    # deseja-se se conectar para solicitar ao servidor
+    elif responseId == "--trocar":
+        print(msg + "\n")
         changeTo = input("Digite o número referente a conexão que você deseja conversar: ")
         QuickSend(sock, changeTo)
-        okMsg = QuickReceive(sock, 1024)
-        if okMsg == "ok":
-            global receiverID
-            receiverID = changeTo
-            global isOnChat
-            isOnChat = True
-            print("OK\n")
-        else:
-            print(okMsg)
+
+    # Confirma que a conexão foi feita e inicializa o chat
+    elif responseId == '--confirmar':
+        receiverID = int(msg)
+        isOnChat = True
+        print("OK. Você agora pode conversar com {%s}\n" % receiverID)
+
+    # Exibe a mensagem de negação da conexão
+    elif responseId == '--negar':
+        receiverID = -1
+        print(msg)
 
 
-print("### CLIENT ###")
-CommandList()
-
-
-# def main():
-
-def receiveMsgs(clientSocket):
-    global isActive
+# Thread que recebe as mensagens e respostas do servidor
+def receiveMsgs():
+    global isActive, sock
     while isActive:
-        msg = QuickReceive(clientSocket, 1024)
+        msg = QuickReceive(sock, 8192)
         if msg:
-            senderID, msgContent = separateMsg(msg)
-            print("Mensagem de {%s}: %s" % (senderID, msgContent))
+            headerStr, msgContent = unpackMsg(msg)
+            if headerStr.find('--') == 0:
+                ServerResponse(headerStr, msgContent)
+            else:
+                print("Mensagem de {%s}: %s" % (headerStr, msgContent))
     return
 
 
-def readInputAndSend(clientSocket):
-    global isActive
+# Thread que acompanha os inputs do usuário
+def readInputAndSend():
+    global isActive, sock, isOnChat, receiverID
     while isActive:
-        if receiverID == -1:
-            toSend = input("Conversando com {Ninguém}, escolha alguém com \"--trocar\" \n ")
+        if not isOnChat:
+            if receiverID == -1:
+                toSend = input("Conversando com {Ninguém}, escolha alguém com \"--trocar\": \n ")
+            else:
+                continue
         else:
             toSend = input("Conversando com {%s}: " % receiverID)
 
         if toSend.find('--') == 0:
             ChooseAction(toSend)
         else:
-            HandleP2PMessage2(clientSocket, toSend)
+            HandleP2PMessage2(sock, toSend)
     return
 
+
+# Função main que inicializa as Threads
 def main():
-    receive = threading.Thread(target=receiveMsgs, args=sock)
-    send = threading.Thread(target=readInputAndSend, args=sock)
+    print("### CLIENT ###")
+    CommandList()
+
+    receive = threading.Thread(target=receiveMsgs)
+    receive.start()
+    send = threading.Thread(target=readInputAndSend)
+    send.start()
 
     while isActive:
         continue
+
     print("Encerrando cliente.")
     receive.join()
     send.join()
@@ -169,21 +181,3 @@ def main():
 
 
 main()
-
-# while True:
-#     if receiverID == -1:
-#         toSend = input("Conversando com {Ninguém}, escolha alguém com \"--trocar\" \n ")
-#     else:
-#         toSend = input("Conversando com {%s}: " % receiverID)
-#         HandleP2PMessage(sock, toSend)
-#     ChooseAction(toSend)
-#
-#     # msgRecv = sock.recv(8192)
-#     # print(str(msgRecv, encoding=ENCODING))
-#
-#     '''resultDicts = BinaryToDict(msg)
-#
-#     for eachDictionary in resultDicts:
-#         print("\"" + eachDictionary + "\": " + str(resultDicts[eachDictionary]))'''
-
-# main()

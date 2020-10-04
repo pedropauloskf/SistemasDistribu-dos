@@ -7,7 +7,7 @@ import sys
 import threading
 
 HOST = ''
-PORT = 5002
+PORT = 5000
 ENCODING = "UTF-8"
 
 ENTRADAS = [sys.stdin]  # define entrada padrão
@@ -61,6 +61,10 @@ def NewClient(sock):
 
     return newSocket, endereco
 
+def getSocketbyID(clientId):
+    address = ID_ENDERECO[int(clientId)]  # Pega o endereço do destinatário
+    return CONEXOES[address]  # Recupera o socket do destinatário
+
 
 # Recebe algum comando vindo do cliente
 def CommandList(clientSock, address, headerStr):
@@ -98,8 +102,7 @@ def CommandList(clientSock, address, headerStr):
                 return 0
 
             conf = packMsg('--conexao', str(address)).encode(ENCODING)
-            targetAdd = ID_ENDERECO[int(addressIdInt)]  # Pega o endereço do destinatário
-            targetSock = CONEXOES[targetAdd]  # Recupera o socket do destinatário
+            targetSock = getSocketbyID(addressIdInt)
             targetSock.send(conf)
             res = clientSock.recv(1024)
             headerRes, headerMsg = unpackMsg(str(res, encoding=ENCODING))
@@ -170,9 +173,9 @@ def Processing(clientSock, address):
         else:
             try:
                 targetAdd = ID_ENDERECO[int(headerStr)]  # Pega o endereço do destinatário
-                targetSock = CONEXOES[targetAdd]  # Recupera o socket do destinatário
+                targetSock = getSocketbyID(int(headerStr))
                 targetSock.send(msgStr.encode(ENCODING))
-                print('Mensagem recebida de %s para %s: %s' % (str(address), str(targetAdd), msgContent))
+                print('Encaminhando mensagem de %s para %s' % (str(address), str(targetAdd)))
             except:
                 print('Erro ao encaminhar mensagem de %s' % (str(address)))
 

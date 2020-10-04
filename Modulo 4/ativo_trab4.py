@@ -6,7 +6,7 @@ import sys
 import threading
 
 HOST = 'localhost'
-PORT = 5002
+PORT = 5000
 ENCODING = "UTF-8"
 
 isOnChat = False
@@ -15,6 +15,7 @@ isActive = True
 
 sock = socket.socket()
 sock.connect((HOST, PORT))
+sock.settimeout(2)
 
 
 def CloseConnection():
@@ -34,9 +35,12 @@ def QuickSend(socket, message):
 
 
 def QuickReceive(socket, size):
-    msgRecv = socket.recv(size)
-    msgStr = str(msgRecv, encoding=ENCODING)
-    return msgStr
+    try:
+        msgRecv = socket.recv(size)
+        msgStr = str(msgRecv, encoding=ENCODING)
+        return msgStr
+    except:
+        return
 
 
 def CommandList():
@@ -83,7 +87,6 @@ def ChooseAction(inputFromClient):
 
     elif inputFromClient == "--stop":
         isActive = False
-        CloseConnection()
 
     elif inputFromClient == "--help":
         CommandList()
@@ -188,8 +191,7 @@ def main():
     print("Encerrando cliente.")
     receive.join()
     send.join()
-    sock.close()
-    sys.exit()
+    CloseConnection()
 
 
 main()

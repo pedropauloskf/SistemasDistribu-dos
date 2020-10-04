@@ -12,12 +12,14 @@ ENCODING = "UTF-8"
 isOnChat = False
 receiverID = -1
 isActive = True
+isAwaitingServer = False
 
 sock = socket.socket()
 sock.connect((HOST, PORT))
 sock.settimeout(2)
 
 
+# Encerra a conexão com o servidor
 def CloseConnection():
     print("Finalizando conexão")
     sock.close()
@@ -30,10 +32,12 @@ def BinaryToDict(the_binary):
     return result
 
 
+# Envio para o servidor
 def QuickSend(socket, message):
     socket.send(message.encode(ENCODING))
 
 
+# Recebimento do servidor
 def QuickReceive(socket, size):
     try:
         msgRecv = socket.recv(size)
@@ -43,6 +47,7 @@ def QuickReceive(socket, size):
         return
 
 
+# Imprime a lista de comandos para o usuário
 def CommandList():
     print("Para ter acesso à lista de comandos, digite \"--help\":")
     print("--listar : Lista as conexões disponíveis para chat")
@@ -60,13 +65,22 @@ def unpackMsg(msgStr):
 
 
 # Adiciona o ID de envio a mensagem ou ação
-def packMsg(msgStr, msgType):
+def packMsg(msgStr, msgType, requesterID=None):
     if msgType == 'action':
         return "[[" + msgStr + "]]"
     elif msgType == 'msg':
         global receiverID
         messagePrefix = "[[" + str(receiverID) + "]]"
         return messagePrefix + msgStr
+    elif msgType == 'res':
+        messagePrefix = "[[" + msgStr + "]]"
+        return messagePrefix + str(requesterID)
+
+
+# Verfica se algo relevante foi digitado
+def ignoreInput(inputMsg):
+    listToIgnore = [" ", "\\n", ""]
+    return inputMsg not in listToIgnore
 
 
 # Envia e recebe mensagem com prefixo do destinatário
@@ -79,24 +93,17 @@ def HandleP2PMessage2(clientSocket, messageToChat):
 
 # Verifica se o cliente digitou algum comando
 def ChooseAction(inputFromClient):
-    global isActive, receiverID
-    listToIgnore = [" ", "\\n", ""]
+    global isActive, isAwaitingServer
 
-    if inputFromClient in listToIgnore:
-        print("Nada foi digitado")
-
-    elif inputFromClient == "--stop":
+    if inputFromClient == "--stop":
         isActive = False
 
     elif inputFromClient == "--help":
         CommandList()
 
-    elif inputFromClient == "--listar":
+    elif inputFromClient in ["--trocar", "--listar"]:
         QuickSend(sock, packMsg(inputFromClient, 'action'))
-
-    elif inputFromClient == "--trocar":
-        receiverID = 0
-        QuickSend(sock, packMsg(inputFromClient, 'action'))
+        isAwaitingServer = True
 
     else:
         print('Comando inválido. Se quiser a lista de comandos, digite --help')
@@ -105,38 +112,47 @@ def ChooseAction(inputFromClient):
 # Realiza as ações apropriadas de acordo com a resposta a
 # uma solicitação enviada ao servidor
 def ServerResponse(responseId, msg):
-    global receiverID, isOnChat
+    global receiverID, isOnChat, isAwaitingServer
     # Exibe a lista de clientes conectados
     if responseId == "--listar":
         print(msg + "\n")
+        isAwaitingServer = False
 
     # Exibe a lista de clientes conectados e solicita a qual
     # deseja-se se conectar para solicitar ao servidor
     elif responseId == "--trocar":
         print(msg + "\n")
         changeTo = input("Digite o número referente a conexão que você deseja conversar: ")
-        QuickSend(sock, changeTo)
+        msg = packMsg('--troca', 'res', changeTo)
+        receiverID = changeTo
+        QuickSend(sock, msg)
 
     # Confirma que a conexão foi feita e inicializa o chat
     elif responseId == '--confirmar':
-        receiverID = int(msg)
         isOnChat = True
+        isAwaitingServer = False
         print("OK. Você agora pode conversar com {%s}\n" % receiverID)
 
     # Exibe a mensagem de negação da conexão
     elif responseId == '--negar':
         receiverID = -1
+        isAwaitingServer = False
         print(msg)
 
     elif responseId == '--conexao':
+        isAwaitingServer = True
         while True:
             res = input('{%s} deseja começar uma conversa. Aceitar? (S/N)' % msg)
+            slc = int(msg[1:msg.index(':')])
             if res == 'S':
-                receiverID = int(msg)
-                QuickSend(sock, packMsg('--aceitar', 'action'))
+                isOnChat = True
+                receiverID = slc
+                QuickSend(sock, packMsg('--aceitar', 'res', slc))
+                isAwaitingServer = False
                 break
             elif res == 'N':
-                QuickSend(sock, packMsg('--negar', 'action'))
+                QuickSend(sock, packMsg('--negar', 'res', slc))
+                isAwaitingServer = False
                 break
             else:
                 print('Entrada inválida.')
@@ -152,7 +168,7 @@ def receiveMsgs():
             if headerStr.find('--') == 0:
                 ServerResponse(headerStr, msgContent)
             else:
-                print("Mensagem de {%s}: %s" % (headerStr, msgContent))
+                print("\nMensagem de {%s}: %s" % (headerStr, msgContent))
     return
 
 
@@ -160,7 +176,9 @@ def receiveMsgs():
 def readInputAndSend():
     global isActive, sock, isOnChat, receiverID
     while isActive:
-        if not isOnChat:
+        if isAwaitingServer:
+            continue
+        elif not isOnChat:
             if receiverID == -1:
                 toSend = input("Conversando com {Ninguém}, escolha alguém com \"--trocar\": \n ")
             else:
@@ -168,10 +186,11 @@ def readInputAndSend():
         else:
             toSend = input("Conversando com {%s}: " % receiverID)
 
-        if toSend.find('--') == 0:
-            ChooseAction(toSend)
-        else:
-            HandleP2PMessage2(sock, toSend)
+        if ignoreInput(toSend):
+            if toSend.find('--') == 0:
+                ChooseAction(toSend)
+            else:
+                HandleP2PMessage2(sock, toSend)
     return
 
 

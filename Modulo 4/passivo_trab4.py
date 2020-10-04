@@ -61,67 +61,115 @@ def NewClient(sock):
 
     return newSocket, endereco
 
-def getSocketbyID(clientId):
+
+# Retorna o socket com bse no ID da conexão
+def getSocketByID(clientId):
     address = ID_ENDERECO[int(clientId)]  # Pega o endereço do destinatário
     return CONEXOES[address]  # Recupera o socket do destinatário
 
 
+# Adquire o ID d conexão pelo endereço
+def GetAddressID(searchAddress):
+    return list(ID_ENDERECO.keys())[list(ID_ENDERECO.values()).index(searchAddress)]
+
+
 # Recebe algum comando vindo do cliente
-def CommandList(clientSock, address, headerStr):
+def CommandList(clientSock, address, msg):
+    headerStr, msgContent = unpackMsg(msg)
     if headerStr == "--listar":
         msg = packMsg('--listar', str(ID_ENDERECO)).encode(ENCODING)
         clientSock.send(msg)
+        commandLog(None, address)
         return
 
-    if headerStr == "--trocar":
+    elif headerStr == '--aceitar':
+        msg = packMsg('--confirmar', '').encode(ENCODING)
+        targetSock = getSocketByID(msgContent)
+        targetSock.send(msg)
+        commandLog(int(msgContent), address)
+        return
+
+    elif headerStr == '--negar':
+        msg = packMsg('--negar', 'Conexão recusada pelo destinatário').encode(ENCODING)
+        targetSock = getSocketByID(msgContent)
+        targetSock.send(msg)
+        commandLog(-1, address)
+        return
+
+    elif headerStr == "--trocar":
+        print("Socket {%s} solicitou nova conexão entre clientes." % str(address))
         msg = packMsg('--trocar', str(ID_ENDERECO)).encode(ENCODING)
         clientSock.send(msg)
-        addressIdStr = clientSock.recv(1024)
+        res = clientSock.recv(1024)
+        headerRes, addressIdStr = unpackMsg(str(res, encoding=ENCODING))
         try:
             addressIdInt = int(addressIdStr)
-        except:
-            print("Id do destinatário não é um número")
+
+            if addressIdInt not in ID_ENDERECO:
+                msg = packMsg('--negar', "Conexão não encontrada [%s]" % addressIdInt).encode(ENCODING)
+                clientSock.send(msg)
+                commandLog(0, address)
+                return
+            else:
+                try:
+                    if address == ID_ENDERECO[addressIdInt]:
+                        msg = packMsg('--negar', "Usuário tentando conversar consigo mesmo").encode(ENCODING)
+                        clientSock.send(msg)
+                        commandLog(0, address)
+                        return
+
+                    else:
+                        msg = '{%s: %s}' % (GetAddressID(address), str(address))
+                        conf = packMsg('--conexao', msg).encode(ENCODING)
+                        targetSock = getSocketByID(addressIdInt)
+                        targetSock.send(conf)
+                        print("Aguardando aprovação do destinatário")
+
+                except:
+                    msg = packMsg('--negar',
+                                  "Ocorreu um erro e não foi possível estabelecer a conexão").encode(ENCODING)
+                    clientSock.send(msg)
+                    commandLog(-2, address)
+                    return
+
+        except ValueError or TypeError:
             msg = packMsg('--negar', "Id do destinatário não é um número").encode(ENCODING)
             clientSock.send(msg)
-            return 0
+            commandLog(0, address)
+            return
 
-        if addressIdInt not in ID_ENDERECO:
-            msg = packMsg('--negar', "Conexão não encontrada [%s]" % addressIdInt).encode(ENCODING)
-            clientSock.send(msg)
-            return 0
+
+# Realiza um log no Servidor das ações realizadas
+def commandLog(responseId, address):
+    if responseId is not None:
+        if responseId == 0:
+            print(
+                "{%s} solicitou nova conexão, porém id de destinatário recebido não é um número válido"
+                % (str(address))
+            )
+        elif responseId == -1:
+            print(
+                "Conexão solicitada por {%s} foi recusada."
+                % str(address)
+            )
+        elif responseId == -2:
+            print(
+                "Ocorreu um erro e não foi possível estabelecer a conexão solicitada por {%s}. "
+                % str(address)
+            )
         else:
-            try:
-                if address == ID_ENDERECO[addressIdInt]:
-                    msg = packMsg('--negar', "Usuário tentando conversar consigo mesmo").encode(ENCODING)
-                    clientSock.send(msg)
-                    return 0
-            except:
-                msg = packMsg('--negar',
-                              "Ocorreu um erro e não foi possível estabelecer a conexão").encode(ENCODING)
-                clientSock.send(msg)
-                return 0
-
-            conf = packMsg('--conexao', str(address)).encode(ENCODING)
-            targetSock = getSocketbyID(addressIdInt)
-            targetSock.send(conf)
-            res = clientSock.recv(1024)
-            headerRes, headerMsg = unpackMsg(str(res, encoding=ENCODING))
-
-            if headerRes == '--aceitar':
-                msg = packMsg('--confirmar', str(addressIdInt)).encode(ENCODING)
-                clientSock.send(msg)
-                return addressIdInt
-
-            elif headerRes == '--negar':
-                msg = packMsg('--negar', '').encode(ENCODING)
-                clientSock(msg)
-                return -1
+            print(
+                "Conexão estabelecida. Socket remetente: {%s}, Socket destino: {%s}"
+                % (str(address), str(ID_ENDERECO[responseId]))
+            )
+    else:
+        print("Socket {%s} solicitou listagem de conexões ativas" % (str(address)))
 
 
 # Verifica se a mensagem é um comando ou uma mensagem para outro cliente
 def checkIfCommand(msgStr):
     try:
-        if msgStr.index('--') == 0:
+        if msgStr.index('--') == 2:
             return True
     except:
         pass
@@ -141,39 +189,17 @@ def Processing(clientSock, address):
             return
 
         msgStr = (str(msg, encoding=ENCODING))
-        headerStr, msgContent = unpackMsg(msgStr)
 
         # Verifica se a mensagem é um comando do cliente
-        if checkIfCommand(headerStr):
-            # Verifica o comando solicitado e recebe o ID da conexão que se deseja fazer,
-            # 0 se for um ID inválido ou None caso seja o comando de listar conexões
-            commandResponseId = CommandList(clientSock, address, headerStr)
-            try:
-                if commandResponseId is not None:
-                    if commandResponseId != 0:
-                        print(commandResponseId)
-                        print(ID_ENDERECO[commandResponseId])
-                        print(
-                            "Nova conexão entre clientes solicitada. Socket remetente: {%s}, "
-                            "Socket destino: {%s}"
-                            % (str(address), str(ID_ENDERECO[commandResponseId]))
-                        )
-                    else:
-                        print(
-                            "{%s} solicitou nova conexão, porém id de destinatário recebido "
-                            "não é um número válido"
-                            % (str(address))
-                        )
-                else:
-                    print("Socket {%s} solicitou listagem de conexões ativas" % (str(address)))
-            except:
-                print("Problemas ao executar o comando '%s' solicitado por {%s}"
-                      % (headerStr, str(address)))
-                continue
+        if checkIfCommand(msgStr):
+            # Verifica o comando solicitado e faz as operações necessárias
+            CommandList(clientSock, address, msgStr)
+
         else:
             try:
+                headerStr, msgContent = unpackMsg(msgStr)
                 targetAdd = ID_ENDERECO[int(headerStr)]  # Pega o endereço do destinatário
-                targetSock = getSocketbyID(int(headerStr))
+                targetSock = getSocketByID(int(headerStr))
                 targetSock.send(msgStr.encode(ENCODING))
                 print('Encaminhando mensagem de %s para %s' % (str(address), str(targetAdd)))
             except:

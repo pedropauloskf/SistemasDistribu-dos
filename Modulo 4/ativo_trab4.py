@@ -103,7 +103,6 @@ def ChooseAction(inputFromClient):
 # uma solicitação enviada ao servidor
 def ServerResponse(responseId, msg):
     global receiverID, isOnChat
-
     # Exibe a lista de clientes conectados
     if responseId == "--listar":
         print(msg + "\n")
@@ -125,6 +124,19 @@ def ServerResponse(responseId, msg):
     elif responseId == '--negar':
         receiverID = -1
         print(msg)
+
+    elif responseId == '--conexao':
+        while True:
+            res = input('{%s} deseja começar uma conversa. Aceitar? (S/N)' % msg)
+            if res == 'S':
+                receiverID = int(msg)
+                QuickSend(sock, packMsg('--aceitar', 'action'))
+                break
+            elif res == 'N':
+                QuickSend(sock, packMsg('--negar', 'action'))
+                break
+            else:
+                print('Entrada inválida.')
 
 
 # Thread que recebe as mensagens e respostas do servidor

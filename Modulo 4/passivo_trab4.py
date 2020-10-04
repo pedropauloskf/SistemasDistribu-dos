@@ -27,8 +27,8 @@ def StartServer():
 
 # Converte dicionário para binário
 def DictToBinary(the_dict):
-    str = json.dumps(the_dict)
-    return str.encode(ENCODING)
+    txt = json.dumps(the_dict)
+    return txt.encode(ENCODING)
 
 
 # Separa a mensagem recebida do header de envio
@@ -73,7 +73,6 @@ def CommandList(clientSock, address, headerStr):
         msg = packMsg('--trocar', str(ID_ENDERECO)).encode(ENCODING)
         clientSock.send(msg)
         addressIdStr = clientSock.recv(1024)
-
         try:
             addressIdInt = int(addressIdStr)
         except:
@@ -98,9 +97,22 @@ def CommandList(clientSock, address, headerStr):
                 clientSock.send(msg)
                 return 0
 
-            msg = packMsg('--confirmar', str(addressIdInt)).encode(ENCODING)
-            clientSock.send(msg)
-            return addressIdInt
+            conf = packMsg('--conexao', str(address)).encode(ENCODING)
+            targetAdd = ID_ENDERECO[int(addressIdInt)]  # Pega o endereço do destinatário
+            targetSock = CONEXOES[targetAdd]  # Recupera o socket do destinatário
+            targetSock.send(conf)
+            res = clientSock.recv(1024)
+            headerRes, headerMsg = unpackMsg(str(res, encoding=ENCODING))
+
+            if headerRes == '--aceitar':
+                msg = packMsg('--confirmar', str(addressIdInt)).encode(ENCODING)
+                clientSock.send(msg)
+                return addressIdInt
+
+            elif headerRes == '--negar':
+                msg = packMsg('--negar', '').encode(ENCODING)
+                clientSock(msg)
+                return -1
 
 
 # Verifica se a mensagem é um comando ou uma mensagem para outro cliente
@@ -115,7 +127,6 @@ def checkIfCommand(msgStr):
 
 # Processa as requisições do cliente
 def Processing(clientSock, address):
-    dictionaryFull = {}
     while True:
         msg = clientSock.recv(8192)
 

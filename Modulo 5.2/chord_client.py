@@ -29,7 +29,7 @@ def CloseConnection():
 
 # Envio para o servidor #TODO garantir que tudo foi enviado
 def Send(socket, message):
-    #socket.send(message.encode(ENCODING))
+    # socket.send(message.encode(ENCODING))
     return
 
 
@@ -75,11 +75,13 @@ def ChooseAction(inputFromClient):
         print('Comando inválido. Se quiser a lista de comandos, digite --help')
 
 
-def insere(noOrigem, chave,valor):
+def insere(noOrigem, chave, valor):
     return
+
 
 def busca(idBusca, noOrigem, chave):
     return
+
 
 # Função main que inicializa as Threads
 def main():

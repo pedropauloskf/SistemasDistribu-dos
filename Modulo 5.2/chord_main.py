@@ -1,44 +1,54 @@
 ### lado passivo (server) ###
 ### CHORD RING ###
 
-'''
+"""
 O programa principal (ESSE AQUI) receberá como entrada o valor de n, escolherá portas distintas para
 cada nó e disparará um processo filho para simular a execução de cada um dos nós,
 montando o anel logico com identificadores consecutivos.
 
+Simulação da interface de acesso aos nós: ́Depois de disparados os processos filhos, o programa principal deverá
+ficar disponível para responder consultas sobre os nós da tabela e sua localização (IP e porta).
+"""
+import socket
+import threading
+from hashlib import sha1
 
-Simulação da interface de acesso aos nós: ́Depois de disparados os processos filhos, o
-programa principal deverá ficar disponível para responder consultas sobre os nós da tabela e sua localização (IP e porta).
-'''
-
-import json, select, socket, sys, threading
+import select
 
 HOST = ''
 PORT = 5000
 ENCODING = "UTF-8"
 
-ENTRADAS = [sys.stdin]  # define entrada padrão
+ENTRADAS = []  # define entrada padrão
 CONEXOES = {}  # armazena historico de conexoes
 ID_ENDERECO = {}  # associa um id único a um endereço (conexão de cliente ip + porta)
-
+NODES = []
+NODENUMBER = 0
 
 # Inicia o servidor e adiciona o socket do servidor nas entradas
 def StartServer():
-    numeroN = input("Digite o numero 'n' (2^n): ")
+    global NODENUMBER
+    NODENUMBER = int(input("Digite o numero 'n' (2^n): "))
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.bind((HOST, PORT))
-    #sock.listen(5)  # espera por até 5 conexões #TODO 2^n conexões serão suportadas
+    sock.listen(2**NODENUMBER)  # espera por até 2^n conexões
     sock.setblocking(False)  # torna o socket não bloqueante na espera por conexões
-    ENTRADAS.append(sock)  # coloca o socket principal na lista de entradas de interesse
-
-    instantiateRing(numeroN)
 
     return sock
 
-def instantiateRing(numeroN):
-    # 2^n
+
+def instantiateRing():
+    global NODENUMBER
+    for i in range(NODENUMBER):
+        # cria e inicia nova thread para gerar os nós
+        newNode = threading.Thread(target=Processing, args=())
+        newNode.start()
+        # armazena a referencia da thread para usar com join()
+        NODES.append(newNode)
     return
 
+def hashing(key):
+    return sha1(str.encode(key)).hexdigest()
 
 # gerencia o recebimento de conexões de clientes, recebe o sock do server
 def NewClient(sock):
@@ -69,7 +79,7 @@ def Processing(clientSock, address):
 
         msgStr = (str(msg, encoding=ENCODING))
 
-        
+
 def main():
     clients = []  # armazena as threads de cada client para dar join
     sock = StartServer()  # pega o socket do servidor
@@ -89,18 +99,6 @@ def main():
                 newClientThread.start()
                 # armazena a referencia da thread para usar com join()
                 clients.append(newClientThread)
-
-            elif leitura_input == sys.stdin:  # entrada padrão, teclado
-                cmd = input()
-                if cmd == "--stop":  # solicitação para finalizar o servidor
-                    for c in clients:
-                        print("Ainda há clientes com conexões ativas")
-                        # aguarda todas as threads terminarem, onde a magia do join acontece
-                        c.join()
-                    sock.close()
-                    sys.exit()
-                elif cmd == "--hist":  # mostra histórico de conexões do server
-                    print(str(CONEXOES.keys()))
 
 
 main()

@@ -12,6 +12,7 @@ ficar disponível para responder consultas sobre os nós da tabela e sua localiz
 import socket
 import threading
 from hashlib import sha1
+from chord_node import StartNode
 
 import select
 
@@ -23,11 +24,11 @@ ENTRADAS = []  # define entrada padrão
 CONEXOES = {}  # armazena historico de conexoes
 ID_ENDERECO = {}  # associa um id único a um endereço (conexão de cliente ip + porta)
 NODES = []
-NODENUMBER = 0
+N_NUMBER = 0
 
 # Inicia o servidor e adiciona o socket do servidor nas entradas
 def StartServer():
-    global NODENUMBER
+    global N_NUMBER
     NODENUMBER = int(input("Digite o numero 'n' (2^n): "))
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.bind((HOST, PORT))
@@ -38,7 +39,7 @@ def StartServer():
 
 
 def instantiateRing():
-    global NODENUMBER
+    global N_NUMBER
     for i in range(NODENUMBER):
         # cria e inicia nova thread para gerar os nós
         newNode = threading.Thread(target=Processing, args=())

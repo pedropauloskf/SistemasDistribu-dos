@@ -11,8 +11,10 @@ ficar disponível para responder consultas sobre os nós da tabela e sua localiz
 """
 import socket
 import threading
+import chord_node
+
 from hashlib import sha1
-from chord_node import StartNode
+#from chord_node import StartNode
 
 import select
 
@@ -26,27 +28,41 @@ ID_ENDERECO = {}  # associa um id único a um endereço (conexão de cliente ip 
 NODES = []
 N_NUMBER = 0
 
+ENDERECOS_NOS_CHORD = {} # dicionario de id do chord + porta
+LISTA_INSTANCIAS = []
+
 # Inicia o servidor e adiciona o socket do servidor nas entradas
 def StartServer():
     global N_NUMBER
-    NODENUMBER = int(input("Digite o numero 'n' (2^n): "))
+    N_NUMBER = int(input("Digite o numero 'n' (2^n): "))
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.bind((HOST, PORT))
-    sock.listen(2**NODENUMBER)  # espera por até 2^n conexões
+    sock.listen(2**N_NUMBER)  # espera por até 2^n conexões
     sock.setblocking(False)  # torna o socket não bloqueante na espera por conexões
 
     return sock
 
 
 def instantiateRing():
-    global N_NUMBER
-    for i in range(NODENUMBER):
+    global N_NUMBER, NODES, PORT, ENDERECOS_NOS_CHORD
+    for i in range(2**N_NUMBER):
         # cria e inicia nova thread para gerar os nós
-        newNode = threading.Thread(target=Processing, args=())
+        newNode = threading.Thread(target=InstantiateChordNode, args=( PORT+i+1 , i, N_NUMBER))
         newNode.start()
+        
         # armazena a referencia da thread para usar com join()
         NODES.append(newNode)
+
+        ENDERECOS_NOS_CHORD[i] = PORT+i+1
     return
+
+# Cada thread criada chamará este método que instanciará uma classe com as propriedades
+def InstantiateChordNode(nodePort, nodeID, N_NUMBER):
+    global LISTA_INSTANCIAS
+    inst = chord_node.ChordNode(nodePort,nodeID,N_NUMBER)
+    LISTA_INSTANCIAS.append(inst) 
+    print("debug: "+ str((inst.NODE_ID,inst.NODE_PORT,inst.N_NUMBER)))
+
 
 def hashing(key):
     return sha1(str.encode(key)).hexdigest()
@@ -84,6 +100,7 @@ def Processing(clientSock, address):
 def main():
     clients = []  # armazena as threads de cada client para dar join
     sock = StartServer()  # pega o socket do servidor
+    instantiateRing()
     print("### SERVER - ESPERANDO POR CONEXÕES ###")
 
     while True:

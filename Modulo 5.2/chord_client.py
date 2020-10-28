@@ -48,6 +48,7 @@ def CloseConnection():
     sock.close()
     sys.exit()
 
+
 # Envio para o servidor #TODO garantir que tudo foi enviado
 def Send(targetSocket, message):
     targetSocket.send(message.encode(ENCODING))
@@ -109,11 +110,38 @@ def ChooseAction(inputFromClient):
         print('Comando inválido. Se quiser a lista de comandos, digite --help')
 
 
+def getNodeAddr(noOrigem):
+    global sock
+    msgStr = SendAndReceive(sock, packMsg('getAddr', str(noOrigem)), 1024)
+    header, port = unpackMsg(msgStr)
+    if header == 'Addr':
+        return port
+
+
+def connectToNode(noOrigem):
+    port = getNodeAddr(noOrigem)
+    nodeSock = socket.socket()
+    nodeSock.connect((HOST, port))
+    nodeSock.settimeout(2)
+    return nodeSock
+
+
 def insere(noOrigem, chave, valor):
+    nodeSock = connectToNode(noOrigem)
+    msg = packMsg('insert', '%s-|-%s' % (chave, valor))
+    Send(nodeSock, msg)
     return
 
 
 def busca(idBusca, noOrigem, chave):
+    nodeSock = connectToNode(noOrigem)
+    req = packMsg('insert', '%s-|-%s' % (idBusca, chave))
+    msgStr = SendAndReceive(nodeSock, req, 8192)
+    header, val = unpackMsg(msgStr)
+    if header == 'success':
+        print("{%s: %s}" % (chave, val))
+    else:
+        print("Chave não encontrada")
     return
 
 
@@ -124,7 +152,7 @@ def main():
     CommandList()
 
     # Solicitação do número N para definir o total de nós
-    msgStr = SendAndReceive(sock, '[[startClient]]', 1024)
+    msgStr = SendAndReceive(sock, packMsg('startClient', ''), 1024)
     header, num = unpackMsg(msgStr)
     if header == 'N':
         NODE_NUMBER = num

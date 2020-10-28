@@ -49,24 +49,24 @@ def StartServer():
 
 
 def instantiateRing():
-    global N_NUMBER, NODES, PORT, ENDERECOS_NOS_CHORD
+    global N_NUMBER, NODES, PORT, ENDERECOS_NOS_CHORD, LISTA_INSTANCIAS
     for i in range(2 ** N_NUMBER):
+
+        ENDERECOS_NOS_CHORD[i] = PORT + i + 1
+
+        fingerTable = []
+        for j in range(N_NUMBER):
+            pos = (i + 2**j) % 2**N_NUMBER
+            fingerTable.append( PORT + 1 + pos )
+
         # cria e inicia nova thread para gerar os nós
-        newNode = threading.Thread(target=InstantiateChordNode, args=(PORT + i + 1, i, N_NUMBER))
+        newNode = threading.Thread(target=chord_node.ChordNode, args=( PORT+i+1 , i , N_NUMBER, fingerTable ))
         newNode.start()
 
         # armazena a referencia da thread para usar com join()
         NODES.append(newNode)
 
-        ENDERECOS_NOS_CHORD[i] = PORT + i + 1
 
-    for i in range(2 ** N_NUMBER):
-        inst = LISTA_INSTANCIAS[i]
-        fingerTable = []
-        for j in range(N_NUMBER):
-            pos = (inst.NODE_ID + 2**j) % 2**N_NUMBER
-            fingerTable.append(ENDERECOS_NOS_CHORD[pos])
-        inst.setFingerTable(fingerTable)
     return
 
 

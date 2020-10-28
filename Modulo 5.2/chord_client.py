@@ -153,7 +153,8 @@ def awaitResponse(port):
 # Função de busca de uma chave no Chord
 def busca(idBusca, noOrigem, chave):
     clientSock, clientPort = awaitResponse(idBusca)
-    req = packMsg('insert', '%s-|-%s' % (str(clientPort), chave))
+    print("Client port: " + str(clientPort))
+    req = packMsg('lookup', '%s-|-%s' % (str(clientPort), chave))
     sendToNode(noOrigem, req)
 
     leitura, escrita, excecao = select.select([clientSock], [], [])
@@ -180,6 +181,7 @@ def main():
 
     # Solicitação do número N para definir o total de nós
     msgStr = SendAndReceive(sock, packMsg('startClient', ''), 1024)
+    print("msg: " + msgStr)
     header, num = unpackMsg(msgStr)
     if header == 'N':
         NODE_NUMBER = int(num)

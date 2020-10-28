@@ -19,13 +19,13 @@ class ChordNode:
     ENCODING = "UTF-8"
 
     # a classe ao ser instanciada, recebe os parametos
-    def __init__(self, nodePort, nodeID, N_Number):
+    def __init__(self, nodePort, nodeID, N_Number, FingerTable):
         self.NODE_PORT = nodePort
         self.NODE_ID = nodeID
         self.N_NUMBER = N_Number
         self.ENTRADA_SELECT = []
         self.HASH_TABLE = {}  # armazena os pares chave/valor do nó
-        self.FINGER_TABLE = []  # armazena o nó mais próximo a determinada distância
+        self.FINGER_TABLE = FingerTable  # armazena o nó mais próximo a determinada distância
         self.LOG = True
 
         self.__startNode()
@@ -48,7 +48,7 @@ class ChordNode:
         self.log("Start Socket " + str([self.HOST, self.NODE_PORT, self.N_NUMBER]))
         return sock
 
-    # Faz a conexão com um nó
+    # Faz a conexão com um outro nó
     def startConnection(self, port):
         self.log('Iniciando conexão com %s' % port)
         sock = socket.socket()
@@ -100,17 +100,29 @@ class ChordNode:
                 break
             elif i == len(self.FINGER_TABLE) - 1:
                 nodeToConnect = self.FINGER_TABLE[i]
+
+        otherNodeSock = self.startConnection(nodeToConnect)
+        otherNodeSock.send(msgStr.encode(self.ENCODING))
+        self.closeConnection(otherNodeSock)
+
         self.log('Redirecionando request para node %s' % nodeToConnect)
         # TODO conectar com nodeToConnect e enviar requisição
+      
+
 
     # Função de busca do valor associado a uma chave na tabela hash
-    def lookUp(self, client, key, msgStr):
+    def lookUp(self, clientPort, key, msgStr):
         self.log('Verificando se a chave %s pertence ao nó' % key)
         isCorrectNode, data = self.checkHash(key)
         if isCorrectNode:
             self.log("Recuperando valor da chave")
             value = self.HASH_TABLE[data]
             # TODO enviar valor diretamente de volta para o cliente
+
+            clientSock = self.startConnection( int(clientPort) )
+            msgToSend = self.packMsg( "success" , value )
+            clientSock.send(msgToSend.encode(self.ENCODING))
+            self.closeConnection(clientSock)
         else:
             self.redirectRequest(data, msgStr)
 
@@ -184,6 +196,3 @@ class ChordNode:
 
     # Guarda uma referência do método para ser chamado log no init (instanciação) da classe
     __startNode = StartNode
-
-    def PreencheFinger(self, FingerTable):
-        self.FINGER_TABLE = FingerTable

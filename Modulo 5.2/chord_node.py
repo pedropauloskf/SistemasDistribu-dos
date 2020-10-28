@@ -26,29 +26,32 @@ class ChordNode:
         self.ENTRADA_SELECT = []
         self.HASH_TABLE = {}  # armazena os pares chave/valor do nó
         self.FINGER_TABLE = []  # armazena o nó mais próximo a determinada distância
+        self.LOG = True
 
         self.__startNode()
 
     def log(self, msg):
-        # global NODE_ID
-        print('[Node %s] %s' % (self.NODE_ID, msg))
+        if self.LOG:
+            print('[Node %s] %s' % (self.NODE_ID, msg))
 
     def startSocket(self):
-        # global N_NUMBER, NODE_PORT, HOST
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.bind((self.HOST, self.NODE_PORT))
         sock.listen(self.N_NUMBER + 1)  # espera por até N + 1 conexões
         sock.setblocking(False)  # torna o socket não bloqueante na espera por conexões
+
         self.log("Start Socket " + str([self.HOST, self.NODE_PORT, self.N_NUMBER]))
         return sock
 
     def startConnection(self, port):
+        self.log('Iniciando conexão com %s' % port)
         sock = socket.socket()
         sock.connect((self.HOST, port))
+        self.log('Conectado')
         return sock
 
-    @staticmethod
-    def closeConnection(sock):
+    def closeConnection(self, sock):
+        self.log('Encerrando conexão')
         sock.close()
         return
 
@@ -93,19 +96,24 @@ class ChordNode:
                 break
             elif i == len(self.FINGER_TABLE) - 1:
                 nodeToConnect = self.FINGER_TABLE[i]
+        self.log('Redirecionando request para node %s' % nodeToConnect)
         # TODO conectar com nodeToConnect e enviar requisição
 
     def lookUp(self, key, client, msgStr):
+        self.log('Verificando se a chave %s pertence ao nó' % key)
         isCorrectNode, data = self.checkHash(key)
         if isCorrectNode:
+            self.log("Recuperando valor da chave")
             value = self.HASH_TABLE[data]
             # TODO enviar valor diretamente de volta para o cliente
         else:
             self.redirectRequest(data, msgStr)
 
     def insert(self, key, value, msgStr):
+        self.log('Verificando se a chave %s pertence ao nó' % key)
         isCorrectNode, data = self.checkHash(key)
         if isCorrectNode:
+            self.log('Salvando chave %s no nó' % key)
             self.HASH_TABLE[data] = value
         else:
             self.redirectRequest(data, msgStr)
@@ -136,15 +144,12 @@ class ChordNode:
             self.insert(msg[:ind], msg[ind + 3:], msgStr)
         elif header == 'check':
             a = 3
-
         return
 
-    # 
-    # def StartNode(nodeId, port):
     def StartNode(self):
+        self.log("### Inicializando ###")
         self.ENTRADA_SELECT.append(self.startSocket())  # cria o socket do nó e appenda na lista pro select
         self.log("### Pronto - Nó Chord Instanciado ###")
-        # acknowledgeReady()
 
         '''
         ############# Programa main fica bloqueado neste while True #############

@@ -14,7 +14,7 @@ import threading
 import chord_node
 
 from hashlib import sha1
-#from chord_node import StartNode
+# from chord_node import StartNode
 
 import select
 
@@ -28,8 +28,9 @@ ID_ENDERECO = {}  # associa um id único a um endereço (conexão de cliente ip 
 NODES = []
 N_NUMBER = 0
 
-ENDERECOS_NOS_CHORD = {} # dicionario de id do chord + porta
+ENDERECOS_NOS_CHORD = {}  # dicionario de id do chord + porta
 LISTA_INSTANCIAS = []
+
 
 # Inicia o servidor e adiciona o socket do servidor nas entradas
 def StartServer():
@@ -37,35 +38,38 @@ def StartServer():
     N_NUMBER = int(input("Digite o numero 'n' (2^n): "))
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.bind((HOST, PORT))
-    sock.listen(2**N_NUMBER)  # espera por até 2^n conexões
+    sock.listen(2 ** N_NUMBER)  # espera por até 2^n conexões
     sock.setblocking(False)  # torna o socket não bloqueante na espera por conexões
+    ENTRADAS.append(sock)
 
     return sock
 
 
 def instantiateRing():
     global N_NUMBER, NODES, PORT, ENDERECOS_NOS_CHORD
-    for i in range(2**N_NUMBER):
+    for i in range(2 ** N_NUMBER):
         # cria e inicia nova thread para gerar os nós
-        newNode = threading.Thread(target=InstantiateChordNode, args=( PORT+i+1 , i, N_NUMBER))
+        newNode = threading.Thread(target=InstantiateChordNode, args=(PORT + i + 1, i, N_NUMBER))
         newNode.start()
-        
+
         # armazena a referencia da thread para usar com join()
         NODES.append(newNode)
 
-        ENDERECOS_NOS_CHORD[i] = PORT+i+1
+        ENDERECOS_NOS_CHORD[i] = PORT + i + 1
     return
 
+
 # Cada thread criada chamará este método que instanciará uma classe com as propriedades
-def InstantiateChordNode(nodePort, nodeID, N_NUMBER):
+def InstantiateChordNode(nodePort, nodeID, n_number):
     global LISTA_INSTANCIAS
-    inst = chord_node.ChordNode(nodePort,nodeID,N_NUMBER)
-    LISTA_INSTANCIAS.append(inst) 
-    print("debug: "+ str((inst.NODE_ID,inst.NODE_PORT,inst.N_NUMBER)))
+    inst = chord_node.ChordNode(nodePort, nodeID, n_number)
+    LISTA_INSTANCIAS.append(inst)
+    print("debug: " + str((inst.NODE_ID, inst.NODE_PORT, inst.N_NUMBER)))
 
 
 def hashing(key):
     return sha1(str.encode(key)).hexdigest()
+
 
 # gerencia o recebimento de conexões de clientes, recebe o sock do server
 def NewClient(sock):
@@ -82,8 +86,35 @@ def NewClient(sock):
     return newSocket, endereco
 
 
+# Separa a mensagem recebida do header de envio
+def unpackMsg(msgStr):
+    headerStart = msgStr.index('[[')
+    headerEnd = msgStr.index(']]')
+    headerStr = msgStr[headerStart + 2:headerEnd]
+    msgContent = msgStr[headerEnd + 2:]
+    return headerStr, msgContent
+
+
+# Adiciona o header de envio a mensagem ou ação
+def packMsg(msgHeader, msgStr):
+    messagePrefix = "[[" + str(msgHeader) + "]]"
+    return messagePrefix + msgStr
+
+def CommandList(sock, msg):
+    headerStr, msgContent = unpackMsg(msg)
+
+    if headerStr == 'getAddr':
+        addr = ENDERECOS_NOS_CHORD[int(msgContent)]
+        res = packMsg('Addr', addr)
+        sock.send(res.encode(ENCODING))
+
+    elif headerStr == 'startClient':
+        res = packMsg('N', str(2**N_NUMBER))
+        sock.send(res.encode(ENCODING))
+
 # Processa as requisições do cliente
 def Processing(clientSock, address):
+    global ENCODING, ENDERECOS_NOS_CHORD, N_NUMBER
     while True:
         msg = clientSock.recv(8192)
 
@@ -95,15 +126,15 @@ def Processing(clientSock, address):
             return
 
         msgStr = (str(msg, encoding=ENCODING))
-
+        CommandList(clientSock, msgStr)
 
 def main():
-    clients = []  # armazena as threads de cada client para dar join
     sock = StartServer()  # pega o socket do servidor
     instantiateRing()
     print("### SERVER - ESPERANDO POR CONEXÕES ###")
 
     while True:
+        print('endereço', ENDERECOS_NOS_CHORD)
         leitura, escrita, excecao = select.select(ENTRADAS, [], [])  # listas do select
 
         # percorre cada objeto de leitura (conexão socket, entrada de teclado)
@@ -111,12 +142,9 @@ def main():
             # significa que a leitura recebeu pedido de conexão
             if leitura_input == sock:
                 clientSock, endr = NewClient(sock)
-
-                # cria e inicia nova thread para atender o cliente
+                print(clientSock, endr)
                 newClientThread = threading.Thread(target=Processing, args=(clientSock, endr))
                 newClientThread.start()
-                # armazena a referencia da thread para usar com join()
-                clients.append(newClientThread)
 
 
 main()

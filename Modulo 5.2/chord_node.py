@@ -55,14 +55,6 @@ class ChordNode:
         sock.close()
         return
 
-    def acknowledgeReady(self):
-        mainSock = self.startConnection(self.MAIN_PORT)
-        msg = 'ACK %s' % str(self.NODE_ID)
-        mainSock.send(msg.encode(self.ENCODING))
-        mainSock.recv(1024)
-        self.closeConnection(mainSock)
-        return
-
     @staticmethod
     def newClient(sock):
         newSocket, add = sock.accept()
@@ -99,7 +91,7 @@ class ChordNode:
         self.log('Redirecionando request para node %s' % nodeToConnect)
         # TODO conectar com nodeToConnect e enviar requisição
 
-    def lookUp(self, key, client, msgStr):
+    def lookUp(self, client, key, msgStr):
         self.log('Verificando se a chave %s pertence ao nó' % key)
         isCorrectNode, data = self.checkHash(key)
         if isCorrectNode:
@@ -137,35 +129,41 @@ class ChordNode:
         header, msg = self.unpackMsg(msgStr)
 
         if header == 'lookup':
+            self.log('Recebido pedido de busca')
             ind = msg.index('-|-')
             self.lookUp(msg[:ind], msg[ind + 3:], msgStr)
         elif header == 'insert':
+            self.log('Recebido pedido de inserção')
             ind = msg.index('-|-')
             self.insert(msg[:ind], msg[ind + 3:], msgStr)
-        elif header == 'check':
-            a = 3
         return
+
+    def Processing(self, clientSock, addr):
+        msg = clientSock.recv(8192)
+
+        if not msg:
+            clientSock.close()
+            return
+
+        msgStr = str(msg, encoding=self.ENCODING)
+        self.checkCommand(msgStr)
 
     def StartNode(self):
         self.log("### Inicializando ###")
-        self.ENTRADA_SELECT.append(self.startSocket())  # cria o socket do nó e appenda na lista pro select
+        nodeSock = self.startSocket()
+        self.ENTRADA_SELECT.append(nodeSock)  # cria o socket do nó e appenda na lista pro select
         self.log("### Pronto - Nó Chord Instanciado ###")
-
-        '''
-        ############# Programa main fica bloqueado neste while True #############
 
         while True:
             leitura, escrita, excecao = select.select(self.ENTRADA_SELECT, [], [])  # listas do select
 
-            # significa que a leitura recebeu pedido de conexão
-            if nodeSock in leitura:
-                clientSock, add = newClient(nodeSock)
-
-                msg = clientSock.recv(8192)
-                msgStr = (str(msg, encoding=ENCODING))
-
-                checkCommand(msgStr)
-    '''
+            # percorre cada objeto de leitura (conexão socket, entrada de teclado)
+            for leitura_input in leitura:
+                # significa que a leitura recebeu pedido de conexão
+                if leitura_input == nodeSock:
+                    clientSock, endr = self.newClient(nodeSock)
+                    newClientThread = threading.Thread(target=self.Processing, args=(clientSock, endr))
+                    newClientThread.start()
 
     # Guarda uma referência do método para ser chamado log no init (instanciação) da classe
     __startNode = StartNode

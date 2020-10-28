@@ -115,7 +115,7 @@ def getNodeAddr(noOrigem):
     msgStr = SendAndReceive(sock, packMsg('getAddr', str(noOrigem)), 1024)
     header, port = unpackMsg(msgStr)
     if header == 'Addr':
-        return port
+        return int(port)
 
 
 def connectToNode(noOrigem):
@@ -155,7 +155,7 @@ def main():
     msgStr = SendAndReceive(sock, packMsg('startClient', ''), 1024)
     header, num = unpackMsg(msgStr)
     if header == 'N':
-        NODE_NUMBER = num
+        NODE_NUMBER = int(num)
 
     while isActive:
         command = input('O que deseja fazer? ')

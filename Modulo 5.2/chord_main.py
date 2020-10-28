@@ -32,6 +32,9 @@ ENDERECOS_NOS_CHORD = {}  # dicionario de id do chord + porta
 LISTA_INSTANCIAS = []
 
 
+def log(msg):
+    print('[SERVER] %s' % msg)
+
 # Inicia o servidor e adiciona o socket do servidor nas entradas
 def StartServer():
     global N_NUMBER
@@ -64,7 +67,8 @@ def InstantiateChordNode(nodePort, nodeID, n_number):
     global LISTA_INSTANCIAS
     inst = chord_node.ChordNode(nodePort, nodeID, n_number)
     LISTA_INSTANCIAS.append(inst)
-    print("debug: " + str((inst.NODE_ID, inst.NODE_PORT, inst.N_NUMBER)))
+
+    log("debug: " + str((inst.NODE_ID, inst.NODE_PORT, inst.N_NUMBER)))
 
 
 def hashing(key):
@@ -74,7 +78,8 @@ def hashing(key):
 # gerencia o recebimento de conexões de clientes, recebe o sock do server
 def NewClient(sock):
     newSocket, endereco = sock.accept()
-    print('Conectado com: ' + str(endereco))
+
+    log('Conectado com: ' + str(endereco))
 
     CONEXOES[endereco] = newSocket  # registra a nova conexão no dicionário de conexões
     if len(ID_ENDERECO) == 0:
@@ -105,12 +110,13 @@ def CommandList(sock, msg):
 
     if headerStr == 'getAddr':
         addr = ENDERECOS_NOS_CHORD[int(msgContent)]
-        res = packMsg('Addr', addr)
+        res = packMsg('Addr', str(addr))
         sock.send(res.encode(ENCODING))
 
     elif headerStr == 'startClient':
         res = packMsg('N', str(2**N_NUMBER))
         sock.send(res.encode(ENCODING))
+
 
 # Processa as requisições do cliente
 def Processing(clientSock, address):
@@ -119,7 +125,9 @@ def Processing(clientSock, address):
         msg = clientSock.recv(8192)
 
         if not msg:
-            print(str(address) + '-> encerrou')
+
+            log(str(address) + '-> encerrou')
+
             del CONEXOES[address]
             del ID_ENDERECO[list(ID_ENDERECO.keys())[list(ID_ENDERECO.values()).index(address)]]
             clientSock.close()
@@ -128,13 +136,14 @@ def Processing(clientSock, address):
         msgStr = (str(msg, encoding=ENCODING))
         CommandList(clientSock, msgStr)
 
+
 def main():
     sock = StartServer()  # pega o socket do servidor
     instantiateRing()
-    print("### SERVER - ESPERANDO POR CONEXÕES ###")
+
+    log("### ESPERANDO POR CONEXÕES ###")
 
     while True:
-        print('endereço', ENDERECOS_NOS_CHORD)
         leitura, escrita, excecao = select.select(ENTRADAS, [], [])  # listas do select
 
         # percorre cada objeto de leitura (conexão socket, entrada de teclado)
@@ -142,7 +151,6 @@ def main():
             # significa que a leitura recebeu pedido de conexão
             if leitura_input == sock:
                 clientSock, endr = NewClient(sock)
-                print(clientSock, endr)
                 newClientThread = threading.Thread(target=Processing, args=(clientSock, endr))
                 newClientThread.start()
 

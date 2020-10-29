@@ -6,6 +6,8 @@ import sys
 import uuid
 from random import randint
 
+import select
+
 '''
 Aplicação cliente: A aplicação cliente deverá permitir ao usuário realizar inserções de
 pares chave/valor e consultas às chaves, indicando sempre um nó de origem. Os resultados
@@ -105,7 +107,8 @@ def ChooseAction(inputFromClient):
     elif inputFromClient == "--search":
         nodeToRequest = randint(0, NODE_NUMBER-1)
         key = input('Chave: ')
-        busca(CLIENT_ID, nodeToRequest, key)
+        port = 5000 + NODE_NUMBER + randint(1, 10000)
+        busca(port, nodeToRequest, key)
 
     else:
         print('Comando inválido. Se quiser a lista de comandos, digite --help')
@@ -121,32 +124,51 @@ def getNodeAddr(noOrigem):
 
 
 # Função de conecção com um nó para poder fazer uma requisição
-def connectToNode(noOrigem):
+def sendToNode(noOrigem, msg):
     port = getNodeAddr(noOrigem)
     nodeSock = socket.socket()
     nodeSock.connect((HOST, port))
     nodeSock.settimeout(2)
-    return nodeSock
+
+    Send(nodeSock, msg)
+    nodeSock.close()
+    return
 
 
 # Função de inserção de um par chave/valor no Chord
 def insere(noOrigem, chave, valor):
-    nodeSock = connectToNode(noOrigem)
     msg = packMsg('insert', '%s-|-%s' % (chave, valor))
-    Send(nodeSock, msg)
+    sendToNode(noOrigem, msg)
     return
+
+
+def awaitResponse(port):
+    awaitSock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    awaitSock.bind((HOST, port))
+    awaitSock.listen(1)  # espera por até 2^n conexões
+    awaitSock.setblocking(False)  # torna o socket não bloqueante na espera por conexões
+    return awaitSock, port
 
 
 # Função de busca de uma chave no Chord
 def busca(idBusca, noOrigem, chave):
-    nodeSock = connectToNode(noOrigem)
-    req = packMsg('insert', '%s-|-%s' % (idBusca, chave))
-    msgStr = SendAndReceive(nodeSock, req, 8192)
-    header, val = unpackMsg(msgStr)
-    if header == 'success':
-        print("{%s: %s}" % (chave, val))
-    else:
-        print("Chave não encontrada")
+    clientSock, clientPort = awaitResponse(idBusca)
+    req = packMsg('insert', '%s-|-%s' % (str(clientPort), chave))
+    sendToNode(noOrigem, req)
+
+    leitura, escrita, excecao = select.select([clientSock], [], [])
+    for leitura_input in leitura:
+        # significa que a leitura recebeu pedido de conexão
+        if leitura_input == clientSock:
+            newSocket, endereco = sock.accept()
+            msg = newSocket.recv(8192)
+            msgStr = msg.decode(ENCODING)
+            header, val = unpackMsg(msgStr)
+
+            if header == 'success':
+                print("{%s: %s}" % (chave, val))
+            else:
+                print("Chave não encontrada")
     return
 
 

@@ -35,6 +35,9 @@ class ChordNode:
         if self.LOG:
             print('[Node %s] %s' % (self.NODE_ID, msg))
 
+    def setFingerTable(self, fingerTable):
+        self.FINGER_TABLE = fingerTable
+
     # Inicia o socket para receber novas conexões
     def startSocket(self):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

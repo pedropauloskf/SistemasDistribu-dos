@@ -59,6 +59,14 @@ def instantiateRing():
         NODES.append(newNode)
 
         ENDERECOS_NOS_CHORD[i] = PORT + i + 1
+
+    for i in range(2 ** N_NUMBER):
+        inst = LISTA_INSTANCIAS[i]
+        fingerTable = []
+        for j in range(N_NUMBER):
+            pos = (inst.NODE_ID + 2**j) % 2**N_NUMBER
+            fingerTable.append(ENDERECOS_NOS_CHORD[pos])
+        inst.setFingerTable(fingerTable)
     return
 
 

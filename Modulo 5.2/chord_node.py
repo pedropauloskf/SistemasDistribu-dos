@@ -30,10 +30,12 @@ class ChordNode:
 
         self.__startNode()
 
+    # Log do nó
     def log(self, msg):
         if self.LOG:
             print('[Node %s] %s' % (self.NODE_ID, msg))
 
+    # Inicia o socket para receber novas conexões
     def startSocket(self):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.bind((self.HOST, self.NODE_PORT))
@@ -43,6 +45,7 @@ class ChordNode:
         self.log("Start Socket " + str([self.HOST, self.NODE_PORT, self.N_NUMBER]))
         return sock
 
+    # Faz a conexão com um nó
     def startConnection(self, port):
         self.log('Iniciando conexão com %s' % port)
         sock = socket.socket()
@@ -50,20 +53,24 @@ class ChordNode:
         self.log('Conectado')
         return sock
 
+    # Encerra a conexão com um nó
     def closeConnection(self, sock):
         self.log('Encerrando conexão')
         sock.close()
         return
 
+    # Aceita a conexão de um novo client
     @staticmethod
     def newClient(sock):
         newSocket, add = sock.accept()
         return newSocket, add
 
+    # Faz a hash da chave passada
     @staticmethod
     def hashing(key):
         return sha1(str.encode(key)).hexdigest()
 
+    # Verifica se a hash pertence ao nó em questão e retorna a hash ou o nó correto
     def checkHash(self, key):
         hashStr = self.hashing(key)
         nodeTotal = 2 ** self.N_NUMBER
@@ -73,6 +80,7 @@ class ChordNode:
         else:
             return False, targetNode
 
+    # Verifica a distância entre dois nós especificados
     def distanceToTargetNode(self, target, num):
         nodeNum = self.NODE_ID + (2 ** num) % (2 ** self.N_NUMBER)
         targetDist = (target - self.NODE_ID) if (target < self.NODE_ID) else (target - self.NODE_ID + 2 ** self.N_NUMBER)
@@ -80,6 +88,7 @@ class ChordNode:
 
         return targetDist - nodeDist
 
+    # Função de redirecionamento da requisição, caso não seja o nó correto
     def redirectRequest(self, target, msgStr):
         nodeToConnect = -1
         for i in range(len(self.FINGER_TABLE)):
@@ -91,6 +100,7 @@ class ChordNode:
         self.log('Redirecionando request para node %s' % nodeToConnect)
         # TODO conectar com nodeToConnect e enviar requisição
 
+    # Função de busca do valor associado a uma chave na tabela hash
     def lookUp(self, client, key, msgStr):
         self.log('Verificando se a chave %s pertence ao nó' % key)
         isCorrectNode, data = self.checkHash(key)
@@ -101,6 +111,7 @@ class ChordNode:
         else:
             self.redirectRequest(data, msgStr)
 
+    # Função de inserção do par na tabela hash
     def insert(self, key, value, msgStr):
         self.log('Verificando se a chave %s pertence ao nó' % key)
         isCorrectNode, data = self.checkHash(key)
@@ -125,6 +136,7 @@ class ChordNode:
         messagePrefix = "[[" + str(msgHeader) + "]]"
         return messagePrefix + msgStr
 
+    # # Verfica o comando enviado e o executa
     def checkCommand(self, msgStr):
         header, msg = self.unpackMsg(msgStr)
 
@@ -132,12 +144,14 @@ class ChordNode:
             self.log('Recebido pedido de busca')
             ind = msg.index('-|-')
             self.lookUp(msg[:ind], msg[ind + 3:], msgStr)
+
         elif header == 'insert':
             self.log('Recebido pedido de inserção')
             ind = msg.index('-|-')
             self.insert(msg[:ind], msg[ind + 3:], msgStr)
         return
 
+    # Processa o pedido feito pelo client
     def Processing(self, clientSock, addr):
         msg = clientSock.recv(8192)
 
@@ -150,8 +164,8 @@ class ChordNode:
 
     def StartNode(self):
         self.log("### Inicializando ###")
-        nodeSock = self.startSocket()
-        self.ENTRADA_SELECT.append(nodeSock)  # cria o socket do nó e appenda na lista pro select
+        nodeSock = self.startSocket() # Cria o socket do nó
+        self.ENTRADA_SELECT.append(nodeSock)  # appenda o socket na lista pro select
         self.log("### Pronto - Nó Chord Instanciado ###")
 
         while True:

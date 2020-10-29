@@ -65,6 +65,7 @@ def QuickReceive(targetSocket, size):
         return
 
 
+# Envia e aguarda o recebimento
 def SendAndReceive(targetSock, msg, size):
     Send(targetSock, msg)
     res = QuickReceive(targetSock, size)
@@ -110,6 +111,7 @@ def ChooseAction(inputFromClient):
         print('Comando inválido. Se quiser a lista de comandos, digite --help')
 
 
+# Função para solicitar o endereço do nó desejado
 def getNodeAddr(noOrigem):
     global sock
     msgStr = SendAndReceive(sock, packMsg('getAddr', str(noOrigem)), 1024)
@@ -118,6 +120,7 @@ def getNodeAddr(noOrigem):
         return int(port)
 
 
+# Função de conecção com um nó para poder fazer uma requisição
 def connectToNode(noOrigem):
     port = getNodeAddr(noOrigem)
     nodeSock = socket.socket()
@@ -126,6 +129,7 @@ def connectToNode(noOrigem):
     return nodeSock
 
 
+# Função de inserção de um par chave/valor no Chord
 def insere(noOrigem, chave, valor):
     nodeSock = connectToNode(noOrigem)
     msg = packMsg('insert', '%s-|-%s' % (chave, valor))
@@ -133,6 +137,7 @@ def insere(noOrigem, chave, valor):
     return
 
 
+# Função de busca de uma chave no Chord
 def busca(idBusca, noOrigem, chave):
     nodeSock = connectToNode(noOrigem)
     req = packMsg('insert', '%s-|-%s' % (idBusca, chave))

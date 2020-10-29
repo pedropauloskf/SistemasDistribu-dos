@@ -71,6 +71,7 @@ def InstantiateChordNode(nodePort, nodeID, n_number):
     log("debug: " + str((inst.NODE_ID, inst.NODE_PORT, inst.N_NUMBER)))
 
 
+# Faz a hash da chave passada
 def hashing(key):
     return sha1(str.encode(key)).hexdigest()
 
@@ -105,14 +106,18 @@ def packMsg(msgHeader, msgStr):
     messagePrefix = "[[" + str(msgHeader) + "]]"
     return messagePrefix + msgStr
 
+
+# Verfica o comando enviado e o executa
 def CommandList(sock, msg):
     headerStr, msgContent = unpackMsg(msg)
 
+    # Comando de busca do endereço de um nó
     if headerStr == 'getAddr':
         addr = ENDERECOS_NOS_CHORD[int(msgContent)]
         res = packMsg('Addr', str(addr))
         sock.send(res.encode(ENCODING))
 
+    # Comando de inicialização do Client para verificar o número total de nós
     elif headerStr == 'startClient':
         res = packMsg('N', str(2**N_NUMBER))
         sock.send(res.encode(ENCODING))
@@ -125,7 +130,6 @@ def Processing(clientSock, address):
         msg = clientSock.recv(8192)
 
         if not msg:
-
             log(str(address) + '-> encerrou')
 
             del CONEXOES[address]

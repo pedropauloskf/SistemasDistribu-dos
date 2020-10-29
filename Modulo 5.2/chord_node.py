@@ -86,29 +86,30 @@ class ChordNode:
     # Verifica a distância entre dois nós especificados
     def distanceToTargetNode(self, target, num):
         nodeNum = self.NODE_ID + (2 ** num) % (2 ** self.N_NUMBER)
-        targetDist = (target - self.NODE_ID) if (target < self.NODE_ID) else (target - self.NODE_ID + 2 ** self.N_NUMBER)
-        nodeDist = (nodeNum - self.NODE_ID) if (nodeNum < self.NODE_ID) else (nodeNum - self.NODE_ID + 2 ** self.N_NUMBER)
+        targetDist = (target - self.NODE_ID) if (target < self.NODE_ID) else (
+                    target - self.NODE_ID + 2 ** self.N_NUMBER)
+        nodeDist = (nodeNum - self.NODE_ID) if (nodeNum < self.NODE_ID) else (
+                    nodeNum - self.NODE_ID + 2 ** self.N_NUMBER)
 
         return targetDist - nodeDist
 
     # Função de redirecionamento da requisição, caso não seja o nó correto
     def redirectRequest(self, target, msgStr):
         nodeToConnect = -1
+        nodePort = -1
         for i in range(len(self.FINGER_TABLE)):
             if self.distanceToTargetNode(target, i) < 0:
-                nodeToConnect = self.FINGER_TABLE[i - 1]
+                nodeToConnect = i-1
+                nodePort = self.FINGER_TABLE[nodeToConnect]
                 break
             elif i == len(self.FINGER_TABLE) - 1:
-                nodeToConnect = self.FINGER_TABLE[i]
-
-        otherNodeSock = self.startConnection(nodeToConnect)
-        otherNodeSock.send(msgStr.encode(self.ENCODING))
-        self.closeConnection(otherNodeSock)
+                nodeToConnect = i
+                nodePort = self.FINGER_TABLE[nodeToConnect]
 
         self.log('Redirecionando request para node %s' % nodeToConnect)
-        # TODO conectar com nodeToConnect e enviar requisição
-      
-
+        otherNodeSock = self.startConnection(nodePort)
+        otherNodeSock.send(msgStr.encode(self.ENCODING))
+        self.closeConnection(otherNodeSock)
 
     # Função de busca do valor associado a uma chave na tabela hash
     def lookUp(self, clientPort, key, msgStr):
@@ -117,10 +118,9 @@ class ChordNode:
         if isCorrectNode:
             self.log("Recuperando valor da chave")
             value = self.HASH_TABLE[data]
-            # TODO enviar valor diretamente de volta para o cliente
 
-            clientSock = self.startConnection( int(clientPort) )
-            msgToSend = self.packMsg( "success" , value )
+            clientSock = self.startConnection(int(clientPort))
+            msgToSend = self.packMsg("success", "%s-|-%s" % (self.NODE_ID, value))
             clientSock.send(msgToSend.encode(self.ENCODING))
             self.closeConnection(clientSock)
         else:
@@ -179,7 +179,7 @@ class ChordNode:
 
     def StartNode(self):
         self.log("### Inicializando ###")
-        nodeSock = self.startSocket() # Cria o socket do nó
+        nodeSock = self.startSocket()  # Cria o socket do nó
         self.ENTRADA_SELECT.append(nodeSock)  # appenda o socket na lista pro select
         self.log("### Pronto - Nó Chord Instanciado ###")
 

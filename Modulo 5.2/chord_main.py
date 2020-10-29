@@ -65,8 +65,6 @@ def instantiateRing():
 
         # armazena a referencia da thread para usar com join()
         NODES.append(newNode)
-
-
     return
 
 

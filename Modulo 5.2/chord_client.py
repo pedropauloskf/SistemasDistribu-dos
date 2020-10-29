@@ -153,7 +153,6 @@ def awaitResponse(port):
 # Função de busca de uma chave no Chord
 def busca(idBusca, noOrigem, chave):
     clientSock, clientPort = awaitResponse(idBusca)
-    print("Client port: " + str(clientPort))
     req = packMsg('lookup', '%s-|-%s' % (str(clientPort), chave))
     sendToNode(noOrigem, req)
 
@@ -161,13 +160,16 @@ def busca(idBusca, noOrigem, chave):
     for leitura_input in leitura:
         # significa que a leitura recebeu pedido de conexão
         if leitura_input == clientSock:
-            newSocket, endereco = sock.accept()
+            newSocket, endereco = clientSock.accept()
             msg = newSocket.recv(8192)
             msgStr = msg.decode(ENCODING)
-            header, val = unpackMsg(msgStr)
+            header, msgContent = unpackMsg(msgStr)
 
             if header == 'success':
-                print("{%s: %s}" % (chave, val))
+                ind = msgContent.index('-|-')
+                node = msgContent[:ind]
+                val = msgContent[ind+3:]
+                print("Chave encontrada no Node %s {%s: %s}" % (node, chave, val))
             else:
                 print("Chave não encontrada")
     return

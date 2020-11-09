@@ -86,11 +86,10 @@ class ChordNode:
     # Verifica a distância entre dois nós especificados
     def distanceToTargetNode(self, target, num):
         nodeNum = self.NODE_ID + (2 ** num) % (2 ** self.N_NUMBER)
-        targetDist = (target - self.NODE_ID) if (target < self.NODE_ID) else (
-                    target - self.NODE_ID + 2 ** self.N_NUMBER)
-        nodeDist = (nodeNum - self.NODE_ID) if (nodeNum < self.NODE_ID) else (
-                    nodeNum - self.NODE_ID + 2 ** self.N_NUMBER)
-
+        targetDist = (target - self.NODE_ID) if (target > self.NODE_ID) else (
+                target - self.NODE_ID + 2 ** self.N_NUMBER)
+        nodeDist = (nodeNum - self.NODE_ID) if (nodeNum > self.NODE_ID) else (
+                nodeNum - self.NODE_ID + 2 ** self.N_NUMBER)
         return targetDist - nodeDist
 
     # Função de redirecionamento da requisição, caso não seja o nó correto
@@ -99,7 +98,7 @@ class ChordNode:
         nodePort = -1
         for i in range(len(self.FINGER_TABLE)):
             if self.distanceToTargetNode(target, i) < 0:
-                nodeToConnect = i-1
+                nodeToConnect = i - 1
                 nodePort = self.FINGER_TABLE[nodeToConnect]
                 break
             elif i == len(self.FINGER_TABLE) - 1:
@@ -116,13 +115,18 @@ class ChordNode:
         self.log('Verificando se a chave %s pertence ao nó' % key)
         isCorrectNode, data = self.checkHash(key)
         if isCorrectNode:
-            self.log("Recuperando valor da chave")
-            value = self.HASH_TABLE[data]
+            try:
+                self.log("Recuperando valor da chave")
+                value = self.HASH_TABLE[data]
+                msgToSend = self.packMsg("success", "%s-|-%s" % (self.NODE_ID, value))
+            except:
+                self.log("Chave %s não encontrada" % key)
+                msgToSend = self.packMsg('fail', '')
+            finally:
+                clientSock = self.startConnection(int(clientPort))
+                clientSock.send(msgToSend.encode(self.ENCODING))
+                self.closeConnection(clientSock)
 
-            clientSock = self.startConnection(int(clientPort))
-            msgToSend = self.packMsg("success", "%s-|-%s" % (self.NODE_ID, value))
-            clientSock.send(msgToSend.encode(self.ENCODING))
-            self.closeConnection(clientSock)
         else:
             self.redirectRequest(data, msgStr)
 

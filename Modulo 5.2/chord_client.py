@@ -51,7 +51,7 @@ def CloseConnection():
     sys.exit()
 
 
-# Envio para o servidor #TODO garantir que tudo foi enviado
+# Envio para o servidor
 def Send(targetSocket, message):
     targetSocket.send(message.encode(ENCODING))
     return
@@ -183,7 +183,6 @@ def main():
 
     # Solicitação do número N para definir o total de nós
     msgStr = SendAndReceive(sock, packMsg('startClient', ''), 1024)
-    print("msg: " + msgStr)
     header, num = unpackMsg(msgStr)
     if header == 'N':
         NODE_NUMBER = int(num)

@@ -35,6 +35,7 @@ LISTA_INSTANCIAS = []
 def log(msg):
     print('[SERVER] %s' % msg)
 
+
 # Inicia o servidor e adiciona o socket do servidor nas entradas
 def StartServer():
     global N_NUMBER
@@ -56,11 +57,11 @@ def instantiateRing():
 
         fingerTable = []
         for j in range(N_NUMBER):
-            pos = (i + 2**j) % 2**N_NUMBER
-            fingerTable.append( PORT + 1 + pos )
+            pos = (i + 2 ** j) % 2 ** N_NUMBER
+            fingerTable.append(PORT + 1 + pos)
 
         # cria e inicia nova thread para gerar os nós
-        newNode = threading.Thread(target=chord_node.ChordNode, args=( PORT+i+1 , i , N_NUMBER, fingerTable ))
+        newNode = threading.Thread(target=chord_node.ChordNode, args=(PORT + i + 1, i, N_NUMBER, fingerTable))
         newNode.start()
 
         # armazena a referencia da thread para usar com join()
@@ -125,7 +126,7 @@ def CommandList(sock, msg):
 
     # Comando de inicialização do Client para verificar o número total de nós
     elif headerStr == 'startClient':
-        res = packMsg('N', str(2**N_NUMBER))
+        res = packMsg('N', str(2 ** N_NUMBER))
         sock.send(res.encode(ENCODING))
 
 

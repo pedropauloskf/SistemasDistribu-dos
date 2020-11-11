@@ -4,6 +4,7 @@ connectionsList = {1: 5001, 2: 5002, 3: 5003, 4: 5004}
 HOST = ''
 ENCODING = "UTF-8"
 
+
 def startReplicaConnection(replicaId):
     replicaSock = socket.socket()
     port = connectionsList[replicaId]
@@ -11,10 +12,12 @@ def startReplicaConnection(replicaId):
 
     return replicaSock
 
+
 def startReplicas():
     for ids in range(1, 5):
         newReplicaThread = threading.Thread(target=ReplicaNode, args=ids)
         newReplicaThread.start()
+
 
 def main():
     connected = False
@@ -41,6 +44,7 @@ def main():
                     replicaSock.close()
                     connected = False
 
+
 class ReplicaNode:
     HOST = ''
     ENTRADAS = []  # [sys.stdin]  # define entrada padrão
@@ -51,10 +55,11 @@ class ReplicaNode:
         self.connectedToClient = False
         self.x = 0
         self.myId = myId
-        self.primaryCopyHolderId = 1
         # Variavel que diz quem esta com o chapeu para poder alterar X
+        self.primaryCopyHolderId = 1
         self.changesHistory = []
         self.connectionsList = {1: 5001, 2: 5002, 3: 5003, 4: 5004}
+        self.sock = None
 
         self.__startReplica()
 
@@ -71,19 +76,19 @@ class ReplicaNode:
         sock.listen(5)  # espera por até 5 conexões
         # sock.setblocking(False)  # torna o socket não bloqueante na espera por conexões
         self.ENTRADAS.append(sock)
-        return sock
+        self.sock = sock
 
     @staticmethod
     def newClient(sock):
         newSocket, add = sock.accept()
         return newSocket, add
 
-    def ConnectToReplica(self, id):
-        self.log('Iniciando conexão com réplica %s' % id)
+    def ConnectToReplica(self, replicaId):
+        self.log('Iniciando conexão com réplica %s' % replicaId)
         sock = socket.socket()
-        port = self.connectionsList[id]
+        port = self.connectionsList[replicaId]
         sock.connect((self.HOST, port))
-        self.log('Conectado')
+        self.log('Conectado com a réplica %s' % replicaId)
         return sock
 
     def SetPrimaryCopyHolder(self, holderId):
@@ -99,7 +104,14 @@ class ReplicaNode:
 
         return newSocket, endereco
 
-    def PrintCommandList(self):
+    def Confirm(self, sock):
+        sock.send('[ACK]'.encode(self.ENCODING))
+
+    def Deny(self, sock):
+        sock.send('[DENY]'.encode(self.ENCODING))
+
+    @staticmethod
+    def PrintCommandList():
         print("--help - lista os comandos")
         print("--valor - valor de x nesta réplica")
         print("--historico - historico do valor de x")
@@ -109,22 +121,42 @@ class ReplicaNode:
     def ProcessCommand(self, command, mySock):
         if command == "--help":
             self.PrintCommandList()
-        if command == "--valor":
+        elif command == "--valor":
             print(self.x)
-        if command == "--historico":
+        elif command == "--historico":
             print(self.changesHistory)
-        if command == "--alterar":
+        elif command == "--alterar":
             self.Altera_X(mySock)
-        if command == "--fim":
-            exit()
+        elif command == "--fim":
+            self.saveChanges()
+            self.connectedToClient = False
+        else:
+            print("Comando Inválido. Tente novamente.")
+
+    def ClientConnection(self, clientSock):
+        self.connectedToClient = True
+        self.Confirm(clientSock)
+        self.PrintCommandList()
+        while self.connectedToClient:
+            command = input("Digite o comando: ")
+            self.ProcessCommand(command, self.sock)
+        clientSock.send('[disconnect]'.encode(self.ENCODING))
 
     def ProcessMessage(self, msgStr, sock):
         headerEnd = msgStr.index(']')
-        headerStr = msgStr[1:headerEnd]
+        headerStr = msgStr[0:headerEnd + 1]
         msgContent = msgStr[headerEnd + 1:]
 
         if headerStr == "[ACK]":
             sock.close()
+            return True
+
+        if headerStr == "[DENY]":
+            sock.close()
+            return False
+
+        if headerStr == "[connect]":
+            self.ClientConnection(sock)
 
         if headerStr == "[changedX]":
             [replicaId, xValue] = msgContent.split('-|-')
@@ -134,13 +166,18 @@ class ReplicaNode:
             [former, new] = msgContent.split('-|-')
             if self.primaryCopyHolderId == former or 0:
                 self.SetPrimaryCopyHolder(new)
+                self.Confirm(sock)
+            else:
+                self.Deny(sock)
 
         if headerStr == "[getPrimary]":
-            if self.primaryCopyHolderId == self.myId:
-                # TODO responder com ACK e bloquear mudança pra outro
+            if self.primaryCopyHolderId == self.myId and not self.connectedToClient:
+                # Impede que outra réplica peça a chave primária e confirma que o solicitante pode pegá-la
                 self.SetPrimaryCopyHolder(0)
+                self.Confirm(sock)
             else:
-                # TODO Negar mudança
+                # Nega-se a passar a chave primária
+                self.Deny(sock)
 
     # Processa a nova conexão
     def Processing(self, clientSock, addr):
@@ -152,6 +189,7 @@ class ReplicaNode:
 
         msgStr = str(msg, encoding=self.ENCODING)
         self.ProcessMessage(msgStr, clientSock)
+        return
 
     # Informa outras réplicas para salvarem as mudanças em X
     def saveChanges(self):
@@ -162,30 +200,42 @@ class ReplicaNode:
                 replicaSock.send(msgStr.encode(self.ENCODING))
                 replicaSock.close()
 
-    # Se definie como novo dono da chave primária e informa outras réplicas
-    def isNewPrimaryHolder(self):
-        self.SetPrimaryCopyHolder(self.myId)
+    def updateReplicasPrimary(self, former, new):
+        counter = 0
+        # Informa as outras réplicas de que devem atualizar quem possui a chavé primária
         for i in range(1, 5):
             if i != self.myId:
                 replicaSock = self.ConnectToReplica(i)
-                msgStr = "[changePrimary]%s" % self.myId
+                msgStr = "[changePrimary]%s-|-%s" % (former, new)
                 replicaSock.send(msgStr.encode(self.ENCODING))
-                replicaSock.close()
+                reply = replicaSock.recv(2048)
+                replyStr = str(reply, encoding=ENCODING)
+                if self.ProcessMessage(replyStr, replicaSock):
+                    counter += 1
+        return counter == 3
+
+    # Se definie como novo dono da chave primária e informa outras réplicas
+    def isNewPrimaryHolder(self):
+        formerPrimary = self.primaryCopyHolderId
+        self.SetPrimaryCopyHolder(self.myId)
+        success = self.updateReplicasPrimary(formerPrimary, self.primaryCopyHolderId)
+        # Se não tiver a confirmação de que todas as réplicas fizeram a atualização
+        # desfaz a mudança de propriedade da chave primária
+        if not success:
+            self.updateReplicasPrimary(self.primaryCopyHolderId, formerPrimary)
 
     def Altera_X(self, mySock):
-        # Pega a chave primãria para a réplica
-        if not self.isPrimaryHolder:
+        # Pega a chave primária para a réplica
+        while not self.isPrimaryHolder():
             primarySock = self.ConnectToReplica(self.primaryCopyHolderId)
             msgStr = "[getPrimary]"
-            while not self.isPrimaryHolder:
-                primarySock.send(msgStr.encode(self.ENCODING))
-                reply = primarySock.recv(2048)
-                replyStr = str(reply, encoding=self.ENCODING)
-                if replyStr == "[ACK]":
-                    primarySock.close()
-                    self.isNewPrimaryHolder()
-                else:
-                    time.sleep(2)
+            primarySock.send(msgStr.encode(self.ENCODING))
+            reply = primarySock.recv(2048)
+            replyStr = str(reply, encoding=self.ENCODING)
+            if self.ProcessMessage(replyStr, primarySock):
+                self.isNewPrimaryHolder()
+            else:
+                time.sleep(2)
 
         # Faz a escrita em X
         try:
@@ -196,7 +246,7 @@ class ReplicaNode:
             print("Valor inválido. Tente Novamente.")
 
     def StartReplica(self):
-        mySock = self.StartServer()
+        self.StartServer()
         self.log("### ESPERANDO POR CONEXÕES ###" % self.myId)
 
         while True:
@@ -205,17 +255,12 @@ class ReplicaNode:
             # percorre cada objeto de leitura (conexão socket, entrada de teclado)
             for leitura_input in leitura:
                 # significa que a leitura recebeu pedido de conexão
-                if leitura_input == mySock:
-                    clientSock, endr = self.NewClient(mySock)
+                if leitura_input == self.sock:
+                    clientSock, endr = self.NewClient(self.sock)
 
                     # Cria e inicia nova thread para atender o cliente
                     newClientThread = threading.Thread(target=self.Processing, args=(clientSock, endr))
                     newClientThread.start()
-
-                # entrada padrão, teclado
-                elif leitura_input == sys.stdin:
-                    command = input("Digite o comando: ")
-                    self.ProcessCommand(command, mySock)
 
     # Guarda uma referência do método para ser chamado logo no init (instanciação) da classe
     __startReplica = StartReplica

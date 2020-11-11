@@ -15,7 +15,7 @@ def startReplicaConnection(replicaId):
 
 def startReplicas():
     for ids in range(1, 5):
-        newReplicaThread = threading.Thread(target=ReplicaNode, args=ids)
+        newReplicaThread = threading.Thread(target=ReplicaNode, args=(ids,))
         newReplicaThread.start()
 
 
@@ -161,6 +161,7 @@ class ReplicaNode:
         if headerStr == "[changedX]":
             [replicaId, xValue] = msgContent.split('-|-')
             self.changesHistory.append({"replica": replicaId, "x": xValue})
+            self.x = xValue
 
         if headerStr == "[changePrimary]":
             [former, new] = msgContent.split('-|-')
@@ -247,7 +248,7 @@ class ReplicaNode:
 
     def StartReplica(self):
         self.StartServer()
-        self.log("### ESPERANDO POR CONEXÕES ###" % self.myId)
+        self.log("### %s ESPERANDO POR CONEXÕES ###" %(self.myId))
 
         while True:
             leitura, escrita, excecao = select.select(self.ENTRADAS, [], [])  # listas do select
